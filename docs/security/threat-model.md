@@ -124,7 +124,7 @@ Verificáveis no código atual:
 4. **Banco e arquivos em claro no disco.** Quem controla o host lê tudo. O PRD exige explicitar esse limite ao usuário; criptografia em repouso não está no escopo do MVP.
 5. **Sem backup/restore implementado.** Perda de microSD é perda total. Documentado como pendência de M3.
 6. **Sem validação de `Origin`/`Host`.** Relevante quando existirem endpoints com dados; hoje só há `/health`.
-7. **Licença indefinida.** Restringe reuso e contribuições; não é risco técnico, mas de governança ([ADR-0006](../adr/0006-licenca-pendente.md)).
+7. **Licença resolvida.** Apache-2.0 desde 25/10/2026 ([ADR-0006](../adr/0006-licenca-apache-2.0.md)); risco de governança encerrado.
 8. **Sem teste em hardware real (Pi 3).** Comportamento sob microSD lento e energia instável ainda não foi medido — nenhuma métrica é publicada antes de medição real.
 
 ## 8. Fora de escopo

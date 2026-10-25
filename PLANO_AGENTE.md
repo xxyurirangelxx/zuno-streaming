@@ -109,36 +109,38 @@ zuno/
 ### M0 — Fundação (antes de funcionalidades)
 
 **Objetivo:** inicializar repositório, padrões, CI e base de documentação.  
-**Dependências:** licença ainda pendente; publicar código sem `LICENSE` até escolha, avisando que o repositório ainda não possui licença de reutilização. Não aceitar contribuições significativas sem política clara.
+**Dependências:** licença **decidida em 25/10/2026: Apache-2.0** (`LICENSE` + `NOTICE` publicados); contribuições externas liberadas sob os termos da licença.
 
-> **Status (2026-10-25): implementado e verificado localmente em Windows 10; aguardando revisão do proprietário antes do M1.**
+> **Status (2026-10-25): concluído e publicado em https://github.com/xxyurirangelxx/zuno-streaming com CI e Security verdes (Linux + Windows + frontend). Aguardando o “ok” do proprietário para iniciar o M1.**
 > Evidências completas em [`docs/milestones/M0.md`](docs/milestones/M0.md).
 
 - [x] Criar workspaces Rust/TS, README, docs de setup, CONTRIBUTING e SECURITY.
 - [x] Criar skeleton `server` e `apps/web` com healthcheck.
 - [ ] Definir esquema mínimo OpenAPI e gerador do cliente tipado. — **parcial:** `docs/api/openapi.yaml` pronto; cliente tipado (`packages/api-client`) escrito à mão e testado; geração automática (ZUNO-003) permanece pendente.
-- [x] Adicionar pipeline CI: fmt, clippy, Rust tests, TS typecheck, ESLint, Vitest, security scan. *(workflows criados; ainda não executados no GitHub)*
+- [x] Adicionar pipeline CI: fmt, clippy, Rust tests, TS typecheck, ESLint, Vitest, security scan. *(executado no GitHub: Backend Linux, Backend Windows, Frontend e Security verdes)*
 - [x] Instalar framework de migrations SQLite, `PRAGMA foreign_keys=ON`, WAL e índices iniciais. *(índices de domínio só fazem sentido com o schema do M1)*
-- [x] Registrar ADR-0001 (monólito Rust), ADR-0002 (SQLite), ADR-0003 (client architecture), ADR-0004 (storage). *(também ADR-0005 ferramentas e ADR-0006 licença pendente)*
+- [x] Registrar ADR-0001 (monólito Rust), ADR-0002 (SQLite), ADR-0003 (client architecture), ADR-0004 (storage). *(também ADR-0005 ferramentas, ADR-0006 Apache-2.0, ADR-0007 Opus canônico, ADR-0008 M1 sem auth)*
 - [x] Criar tokens iniciais de design e mecanismo reduced-motion/reduced-transparency.
 
 **Gate M0:** build em Windows e Linux; healthcheck e migrations com teste; docs permitem subir dev environment; nenhuma chave hardcoded.
 
-**Resultado do gate:** Windows verificado localmente (build, clippy, 14 testes Rust, 18 testes de frontend, build de produção e integração backend↔proxy). Linux coberto pela matrix do CI, ainda não executada no GitHub. Licença permanece **pendente** por decisão do proprietário.
+**Resultado do gate:** Windows verificado localmente (build, clippy, 14 testes Rust, 18 testes de frontend, build de produção e integração backend↔proxy); Linux/Windows no GitHub Actions verdes; `cargo audit`/`npm audit` verdes; `main` protegido com os 5 checks obrigatórios.
 
 ### M1 — Servidor musical
 
+> **Decisões fechadas (25/10/2026):** biblioteca **somente Opus 128 kbps VBR** (ADR-0007); servidor **não converte** — a conversão é do cliente Windows/Tauri (M4); M1 **sem autenticação**, bind loopback (ADR-0008); entrega em 3 PRs (M1a schema+scanner, M1b streaming, M1c upload/staging); fixtures de áudio sintéticas geradas com ffmpeg; alvo armv7 (Pi 3 B 32-bit) com hardware pendente.
+
 - [ ] Configuração validada com caminhos, limites e permissões de SO.
 - [ ] Entity model: Track/Artist/Album/AudioFile/Artwork e index FTS.
-- [ ] Scanner incremental + manual + reentrada após interrupção.
+- [ ] Scanner incremental + manual + reentrada após interrupção; **aceitar apenas Opus** e reportar os demais formatos sem mover/apagar.
 - [ ] Extração de tags com Lofty; preservação de provenance; filenames fallback.
-- [ ] Proteger import por staging, tamanho, MIME/probe, checksum, symlink/path traversal.
+- [ ] Proteger import por staging, tamanho, MIME/probe, checksum, symlink/path traversal; **rejeitar upload não-Opus (415)**.
 - [ ] Tratar duplicatas e ausência de arquivo sem deleção automática.
-- [ ] Streaming GET/HEAD com Range, autorização e cancelamento.
+- [ ] Streaming GET/HEAD com Range e cancelamento (sem auth no M1; loopback only).
 - [ ] Capa embutida e reduzida em cache; fallback.
 - [ ] Integração API list/search/filter/cursor e documentação.
 
-**Gate M1:** Pi 3 (ou hardware ARM equiparável identificado) serve arquivos MP3, FLAC e Opus suportados pelo cliente sem transcoding em execução normal. Testes de seek, arquivos ausentes e uploads interrompidos passam.
+**Gate M1:** servidor serve **Opus** em LAN com seek e restrições; formatos diferentes de Opus são rejeitados/ignorados com relatório claro e **sem deleção**; testes de seek, arquivos ausentes e uploads interrompidos passam. Medição em hardware: Pi 3 B (armv7) **pendente** até o hardware estar disponível — até lá, cross-compile + CI + x86-64.
 
 ### M2 — Web funcional, auth e biblioteca
 
@@ -172,6 +174,7 @@ zuno/
 - [ ] App Tauri 2 Windows com UI compartilhada.
 - [ ] Integrações: mídia/atalhos, bandeja, autostart opcional, controles de tarefa, Discord opcional.
 - [ ] Instalador e build portátil; desinstalação não remove biblioteca no servidor.
+- [ ] **Conversão client-side para Opus 128 kbps VBR** antes do envio (ffmpeg embutido), com original preservado no cliente e aviso para fontes lossy (ADR-0007).
 - [ ] Downloads e offline Windows, gerenciamento de storage e exportação quando configurada.
 - [ ] Áudio avançado validado em Windows; fallback no que não funcionar.
 - [ ] Verificação de update assinada com fluxo seguro e changelog.
@@ -287,23 +290,22 @@ Cada item possui ID estável, milestone, prioridade e teste de aceite. Dividir e
 ## Rollback (se altera DB/arquivos)
 ```
 
-## 4. ADRs iniciais
+## 4. ADRs
 
-Crie um arquivo por ADR com Contexto, Decisão, Opções, Consequências e Status.
+Um arquivo por ADR em `docs/adr/` com Contexto, Decisão, Alternativas, Consequências e Status. Índice em [`docs/adr/README.md`](docs/adr/README.md).
 
-- **ADR-0001 [Confirmada]:** Rust/Axum/Tokio como backend.
-- **ADR-0002 [Confirmada]:** SQLite principal, sem servidor PostgreSQL no MVP.
-- **ADR-0003 [Confirmada]:** monólito modular + workers opcionais.
-- **ADR-0004 [Confirmada]:** React/TS/Vite/Tailwind, Tauri 2 com frontend compartilhado.
-- **ADR-0005 [Confirmada]:** biblioteca física no filesystem e metadados no SQLite.
-- **ADR-0006 [Confirmada]:** Opus 128 kbps VBR preset; conversão e preservação governadas por política por importação.
-- **ADR-0007 [Confirmada]:** API REST versionada, WebSocket para Connect, sync incremental.
-- **ADR-0008 [Confirmada]:** IA BYOK + provedores + fallback local sem assinatura obrigatória.
-- **ADR-0009 [Confirmada]:** acesso VPN/túnel configurável; CGNAT não resolvido por DNS sozinho.
-- **ADR-0010 [Pendente]:** licença open-source. Documento de comparação MIT, Apache, GPL, AGPL e decisão formal.
-- **ADR-0011 [Pendente]:** RP ID / identidade URL do servidor para passkeys.
-- **ADR-0012 [Pendente]:** política de storage offline e capacidades por motor.
-- **ADR-0013 [Pendente]:** Monochrome/lyrics APIs e permissões.
+**Registradas:**
+
+- **ADR-0001 [Aceita]:** Rust/Axum/Tokio como backend, monólito modular.
+- **ADR-0002 [Aceita]:** SQLite principal, migrations SQLx embutidas, sem PostgreSQL no MVP.
+- **ADR-0003 [Aceita]:** React/TS/Vite/Tailwind compartilhado; Web/PWA primeiro, Tauri 2 depois; capacidades por plataforma.
+- **ADR-0004 [Aceita]:** áudio no filesystem e metadados no SQLite; original preservado; IDs independentes de caminho.
+- **ADR-0005 [Aceita]:** ferramentas do monorepo (npm workspaces, TypeScript 5.9, ESLint 10, Prettier, Tailwind 4, Vitest).
+- **ADR-0006 [Aceita]:** licença **Apache-2.0** (25/10/2026).
+- **ADR-0007 [Aceita]:** **Opus 128 kbps VBR** como formato canônico; conversão no cliente Windows/Tauri (M4); servidor não transcodifica.
+- **ADR-0008 [Aceita, temporária]:** M1 sem autenticação, bind loopback; autorização obrigatória a partir do M2.
+
+**Ainda pendentes (numeração a atribuir):** API REST versionada + WebSocket/sync incremental (M2/M6), IA BYOK e quotas (M7), VPN/túnel para CGNAT (M3), RP ID/passkeys (M2), storage offline e capacidades por motor (M3), Monochrome/letras (M8).
 
 ## 5. Segurança e compliance por tarefa
 
@@ -476,10 +478,10 @@ Code builds; tests pass; permissions/privacy reviewed; files preserved; config/d
 
 ## 12. Itens a resolver com o proprietário antes de operações irreversíveis
 
-- Licença e arquivo LICENSE.
+- ~~Licença e arquivo LICENSE.~~ **Resolvido (25/10/2026): Apache-2.0.**
 - Domínio permanente/RP ID para passkeys e a forma de acesso CGNAT padrão.
-- Modelo exato da placa Pi 3 e imagem Raspberry Pi OS testada.
-- Política e interfaces de exclusão de originais e backup externo.
+- ~~Modelo exato da placa Pi 3 e imagem Raspberry Pi OS testada.~~ **Resolvido: Pi 3 B 32-bit (armv7); hardware para medição pendente de disponibilidade.**
+- Política e interfaces de exclusão de originais e backup externo. *(originais ficam no cliente; exclusão no servidor fora do escopo)*
 - Direitos/APIs dos provedores de letras e Monochrome.
 - Provedores de IA padrão, custos, retenção e privacidade.
 - Política de atualizações automáticas do servidor com migrations incompatíveis.

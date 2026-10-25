@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Interface web do Zuno (React, TypeScript, Vite e Tailwind).",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",

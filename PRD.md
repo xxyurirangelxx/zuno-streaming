@@ -44,7 +44,7 @@ Zuno é uma plataforma open-source para pessoas hospedarem sua própria bibliote
 
 - [CONFIRMADO] GitHub público desde o início; releases experimentais, beta e estáveis conforme critérios de qualidade.
 - [CONFIRMADO] Sem assinatura, telemetria ou coleta desnecessária de dados.
-- [CONFIRMADO] Licença open-source **não escolhida**; comparar MIT, Apache-2.0, GPL-3.0 e AGPL-3.0 (seção 17).
+- [CONFIRMADO] Licença open-source **Apache-2.0**, decidida pelo proprietário em 25/10/2026 (seção 17, ADR-0006).
 - [CONFIRMADO] Revisão de PRs, políticas de contribuição e decisões arquiteturais documentadas.
 - [CONFIRMADO] Releases Windows e Linux pelo GitHub, APK Android assinado no GitHub, F-Droid como canal adicional, checksums/assinaturas verificáveis.
 - [CONFIRMADO] API versionada, negociação de capacidades e janela de compatibilidade documentada.
@@ -57,8 +57,8 @@ Zuno é uma plataforma open-source para pessoas hospedarem sua própria bibliote
 - [CONFIRMADO] Biblioteca única, até 1.000 músicas como dimensionamento inicial, com 2–5 usuários.
 - [CONFIRMADO] Apenas administradores adicionam/editam/excluem diretamente; moderadores podem **aprovar importações pendentes**, rever conflitos e corrigir metadados/capas. Aprovar importação não implica permissão de upload autônomo: o fluxo exato ficará sujeito a teste/autorização.
 - [CONFIRMADO] Upload desktop, Android e Web; pasta monitorada; importação de diretórios; futuras integrações.
-- [CONFIRMADO] Formatos aceitos MP3, FLAC, M4A/AAC, OGG/Vorbis/Opus; formato de saída padrão **Opus 128 kbps VBR** configurável pelo administrador.
-- [CONFIRMADO] Política de origem **por importação, preservando o arquivo original por padrão**. Recompressão de codecs lossy requer aviso explícito; original só é excluído por ação confirmada.
+- [CONFIRMADO] **Formato canônico da biblioteca: Opus 128 kbps VBR** (decidido em 25/10/2026). O servidor armazena e serve **apenas Opus**; a conversão dos arquivos originais acontece **no cliente que envia** (Windows/Tauri, M4). Arquivos de outros formatos encontrados no diretório monitorado são ignorados e reportados; uploads de outros formatos são rejeitados com erro claro — nunca convertidos, movidos ou apagados pelo servidor.
+- [CONFIRMADO] Política de origem **por importação, preservando o arquivo original por padrão**. Os originais permanecem no cliente/dispositivo que envia; o servidor recebe somente o Opus convertido. Recompressão de codecs lossy no cliente requer aviso explícito; original só é excluído por ação confirmada do usuário.
 - [CONFIRMADO] Organização de arquivos por artista/álbum em biblioteca gerenciada; importar sem movimentar arquivos externos exige opção de modo somente leitura **[PROPOSTO]**.
 - [CONFIRMADO] Duplicatas: interface pergunta se mantém ou substitui, individualmente ou em lote; hashes exatos separados da detecção por metadados.
 - [CONFIRMADO] Tags, nomes, MusicBrainz, fontes adicionais autorizadas e edição manual; capas incorporadas, `cover.jpg`/`folder.jpg`, busca externa, upload manual; escrever tags originais quando solicitado.
@@ -176,7 +176,7 @@ flowchart TD
 
 - **Servidor:** único executável Rust, Axum/Tokio, logging estruturado, migrations e fila de tarefas em SQLite. Operações bloqueantes em worker limitado; limites explícitos de concorrência.
 - **Dados:** SQLite em WAL + foreign keys, índices/FTS5; arquivos musicais no filesystem; IDs estáveis independentes dos caminhos; versões e tombstones para sync.
-- **Streaming:** original-first; leitura em blocos; `Range` e `If-Range`, sem transcodificar por padrão. Opus 128 kbps VBR como preset para *novas conversões escolhidas*, não recodificação forçada dos originais.
+- **Streaming:** serve o arquivo Opus da biblioteca em blocos, com `Range` e `If-Range`; **nenhuma transcodificação no servidor**. O Opus 128 kbps VBR canônico é produzido no cliente antes do envio (M4); conversão no servidor não faz parte do roadmap.
 - **Clients:** React/TS/Vite/Tailwind compartilhado; Tauri 2 para desktop/mobile; adaptadores nativos para áudio mobile, foco e controles; PWA com Service Worker onde suportado.
 - **Workers externos:** opcional para análise acústica, fingerprint e conversão; autenticar operações e limitar recursos.
 - **Connect:** WebSocket para presença e comandos, REST com snapshots e eventos incrementais; dispositivo de reprodução recebe stream do servidor, não por meio de outro cliente.
@@ -185,18 +185,18 @@ flowchart TD
 
 ```mermaid
 flowchart LR
- U[Upload / watched folder] --> TMP[Staging + validation]
+ C[Cliente converte para Opus 128 VBR<br/>original preservado no cliente] --> U[Upload / watched folder]
+ U --> TMP[Staging + validation]
  TMP --> HASH[Checksum + media probe]
  HASH --> D{Conflict?}
  D -->|yes| REVIEW[Admin/moderator review]
  D -->|no| META[Tags + artwork]
  REVIEW --> META
- META --> X[Optional client/worker encode]
- X --> SAVE[Atomic move + DB transaction]
+ META --> SAVE[Atomic move + DB transaction]
  SAVE --> IDX[FTS index + change event]
 ```
 
-**Regras obrigatórias:** impedir traversal/symlink escape; limitar tamanho e conteúdo; arquivo temporário fora do diretório servido; não excluir original automaticamente; analisar apenas formatos de mídia aprovados; recuperabilidade de jobs após reboot.
+**Regras obrigatórias:** impedir traversal/symlink escape; limitar tamanho e conteúdo; arquivo temporário fora do diretório servido; não excluir original automaticamente; aceitar somente Opus (rejeitar/ignorar outros formatos com relatório); recuperabilidade de jobs após reboot.
 
 ### 5.3 Modelo de dados inicial
 
@@ -307,7 +307,7 @@ Constraints de unicidade/visibilidade, políticas de retenção e índices serã
 | Marco | Escopo | Gate de aceitação |
 |---|---|---|
 | M0 — Fundação | monorepo, CI, RFCs, OpenAPI, design tokens, threat model | build reproduzível + testes básicos |
-| M1 — Servidor Pi | Rust/Axum, SQLite, scan, tags, import jobs, HTTP Range | MP3/Opus/FLAC transmitidos em LAN com seek e restrições |
+| M1 — Servidor Pi | Rust/Axum, SQLite, scan, tags, import jobs, HTTP Range | Opus transmitido em LAN com seek e restrições; formatos diferentes de Opus rejeitados/ignorados com relatório, sem deleção |
 | M2 — Web core | login/convite, biblioteca, search, playlists/favorites, uploads, player | fluxo completo usuário/admin E2E |
 | M3 — Web PWA/offline/audio | cache/download, crossfade/EQ/gapless por capacidade, autoplay local, backup/restore | testes em browser suportado; degradação documentada |
 | M4 — Windows MVP público | Tauri, instalador/portátil, integrações desktop, reprodução avançada | workflows Windows aprovados e instalador assinado quando disponível |
@@ -338,7 +338,7 @@ M1–M3 podem gerar releases experimentais antes do MVP público M4. Esta ordena
 1. **Licença:** consultar a comparação no item 17 e selecionar antes de aceitar contribuições externas significativas.
 2. **Modelo exato do Pi e OS:** detectar e testar; 32-bit vs 64-bit não decidido.
 3. **Conectividade CGNAT:** provedor VPN/túnel padrão não escolhido; configuração assistida sem prometer domínio gratuito universal.
-4. **Política de arquivos originais:** “por importação, preservar por padrão” definida; interface e destino de arquivo externo aguardam desenho final.
+4. **Política de arquivos originais:** resolvida em 25/10/2026 — o servidor recebe e armazena apenas Opus; os originais permanecem no cliente que envia (conversão client-side no M4). Interface de exclusão de originais continua fora do escopo do servidor.
 5. **Passkeys e domínios:** definir RP ID após endpoint seguro estável.
 6. **Monochrome e letras:** verificar API, direitos, termos, rate limits e licença de código/conteúdo antes de implementar.
 7. **IA:** quotas, modelos gratuitos e política de provedores mudam; configuração editável, sem dependência obrigatória.
@@ -384,7 +384,9 @@ Autenticar admin + confirmação forte → subir/apontar backup → verificar cr
 
 Mudanças de requisitos devem atualizar este PRD, adicionar ADR se alterarem arquitetura, ajustar contratos/migrations/testes, e registrar migrações/compatibilidade. Todo novo provedor requer revisão de privacidade e direitos. Não confundir milestone de roadmap com disponibilidade universal de uma funcionalidade.
 
-## 17. Comparação de licenças — **decisão pendente**
+## 17. Licença — **decidida: Apache-2.0**
+
+**Decisão do proprietário (25/10/2026): Apache-2.0.** Registrada em `docs/adr/0006-licenca-apache-2.0.md`; o arquivo `LICENSE` e o `NOTICE` estão no repositório. A tabela abaixo permanece como histórico da comparação que fundamentou a escolha.
 
 | Licença | Redistribuição proprietária | Obrigação de publicar alterações | Adequação ao Zuno |
 |---|---|---|---|
@@ -393,4 +395,4 @@ Mudanças de requisitos devem atualizar este PRD, adicionar ADR se alterarem arq
 | GPL-3.0 | Condicionada às obrigações de copyleft | Ao distribuir programa derivado | Protege redistribuições de clientes/servidor; não exige publicação só por hospedar serviço |
 | AGPL-3.0 | Condicionada ao copyleft | Inclui usuários interagindo com programa modificado pela rede (na hipótese aplicável) | Mais forte para servidor self-hosted aberto, pode afastar alguns integradores |
 
-**[PROPOSTO] Apache-2.0** se a prioridade for facilidade de adoção, reuso, contribuições e integrações; **AGPL-3.0** se a prioridade for que alterações em servidores públicos também permaneçam abertas. A escolha é do proprietário; verificar compatibilidade de dependências e eventuais contribuições antes de publicar `LICENSE`. Não constitui aconselhamento jurídico.
+**[DECIDIDO] Apache-2.0** (25/10/2026): prioridade em adoção, reuso, contribuições e integrações, com concessão expressa de patentes. AGPL-3.0 foi considerada e descartada por afastar integradores. Dependências verificadas: todas MIT/Apache-2.0, compatíveis. Não constitui aconselhamento jurídico.

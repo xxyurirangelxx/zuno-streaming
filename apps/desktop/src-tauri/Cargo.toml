@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Aplicativo desktop do Zuno (Tauri 2)"
 edition = "2024"
 rust-version = "1.88"
-license = "UNLICENSED"
+license = "Apache-2.0"
 publish = false
 
 # Este crate fica FORA do workspace Rust da raiz (ver `exclude` no Cargo.toml raiz),

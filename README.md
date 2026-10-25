@@ -2,11 +2,11 @@
 
 Zuno é uma plataforma **self-hosted** de streaming de músicas: você mantém sua própria biblioteca, no seu próprio hardware, e ouve de onde estiver. O servidor é escrito em Rust e foi dimensionado para rodar em um Raspberry Pi 3, enquanto os clientes (Web/PWA, Windows e Android) compartilham a mesma interface em React. O projeto é gratuito, sem assinatura, sem catálogo comercial embutido e sem telemetria.
 
-A biblioteca é compartilhada entre 2–5 usuários, com playlists, favoritos e histórico segregados por pessoa. O Zuno não distribui música: os arquivos vêm do próprio usuário ou de fontes que ele tenha o direito de usar. Integrações externas (metadados, IA, letras) são opcionais e nunca requisito para o funcionamento básico.
+A biblioteca é compartilhada entre 2–5 usuários, com playlists, favoritos e histórico segregados por pessoa. O Zuno não distribui música: os arquivos vêm do próprio usuário ou de fontes que ele tenha o direito de usar. A biblioteca usa **Opus 128 kbps VBR**: a conversão dos arquivos originais acontece no cliente que envia (Windows/Tauri, M4) e o servidor apenas armazena e transmite Opus ([ADR-0007](docs/adr/0007-opus-formato-canonico.md)). Integrações externas (metadados, IA, letras) são opcionais e nunca requisito para o funcionamento básico.
 
 O repositório está no início: o marco **M0 (fundação)** entregou o monorepo, o healthcheck, as migrations SQLite, o pipeline de qualidade e esta documentação. As funcionalidades musicais (scan, streaming, login, player) pertencem a marcos posteriores e ainda **não estão implementadas**.
 
-> **Licença pendente.** Este repositório ainda **não possui licença de reutilização** (não há arquivo `LICENSE`; o `package.json` usa `UNLICENSED`). A escolha entre MIT, Apache-2.0, GPL-3.0 e AGPL-3.0 é uma decisão do proprietário — veja [ADR-0006](docs/adr/0006-licenca-pendente.md). Até lá, não trate o código como open-source licenciado nem aceite contribuições externas significativas.
+> **Licença Apache-2.0.** O repositório é open-source sob [Apache-2.0](LICENSE), com atribuição em [NOTICE](NOTICE) — decisão registrada em [ADR-0006](docs/adr/0006-licenca-apache-2.0.md). Contribuições são bem-vindas sob esses termos.
 
 ## Status atual
 
@@ -204,4 +204,8 @@ Detalhes, gates e backlog: [`PLANO_AGENTE.md`](PLANO_AGENTE.md). Requisitos: [`P
 
 ## Licença
 
-**Pendente de decisão.** Não há `LICENSE` neste repositório. Não presuma MIT, Apache-2.0, GPL-3.0, AGPL-3.0 nem qualquer outra licença. Enquanto a decisão não for registrada, o código não deve ser redistribuído e contribuições externas significativas não devem ser aceitas. Consulte [ADR-0006](docs/adr/0006-licenca-pendente.md).
+[Apache-2.0](LICENSE) — Copyright 2026 Zuno contributors (ver [NOTICE](NOTICE)).
+A decisão está registrada em [ADR-0006](docs/adr/0006-licenca-apache-2.0.md).
+
+Você pode usar, modificar e redistribuir o Zuno, inclusive em produtos proprietários, desde que preserve
+os avisos de licença e o `NOTICE`. Não há garantia: o software é fornecido “AS IS”.

@@ -1,0 +1,8 @@
+Zuno
+Copyright 2026 Zuno contributors
+
+Este produto é distribuído sob a Apache License, Version 2.0.
+Consulte o arquivo LICENSE para o texto completo da licença.
+
+Os componentes de terceiros mantêm suas próprias licenças e avisos,
+conforme declarado em seus respectivos pacotes (Cargo.lock e package-lock.json).

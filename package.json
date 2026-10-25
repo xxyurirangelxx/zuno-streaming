@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Zuno — plataforma self-hosted e open-source de streaming de músicas",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"

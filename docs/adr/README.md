@@ -11,7 +11,9 @@ Registro das decisões relevantes do Zuno. Cada ADR é imutável depois de aceit
 | [0003](0003-arquitetura-de-clientes.md) | Arquitetura de clientes e capacidades | Accepted | 2026-10-25 |
 | [0004](0004-armazenamento-de-audio.md) | Armazenamento de áudio no filesystem | Accepted | 2026-10-25 |
 | [0005](0005-ferramentas-do-monorepo.md) | Ferramentas e workspaces do monorepo | Accepted | 2026-10-25 |
-| [0006](0006-licenca-pendente.md) | Licença open-source pendente | Proposed | 2026-10-25 |
+| [0006](0006-licenca-apache-2.0.md) | Licença Apache-2.0 | Accepted | 2026-10-25 |
+| [0007](0007-opus-formato-canonico.md) | Opus 128 kbps VBR canônico e conversão no cliente | Accepted | 2026-10-25 |
+| [0008](0008-m1-sem-autenticacao.md) | M1 sem autenticação (loopback, temporária) | Accepted (expira no M2) | 2026-10-25 |
 
 ## Convenção de status
 

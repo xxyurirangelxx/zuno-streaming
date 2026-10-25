@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Tipos compartilhados dos contratos da API do Zuno.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "exports": {
     ".": "./src/index.ts"
   },

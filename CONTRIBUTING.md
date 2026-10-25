@@ -2,7 +2,7 @@
 
 Obrigado pelo interesse. O Zuno é um projeto pequeno e incremental: mudanças focadas, testadas e documentadas são mais valiosas do que grandes alterações sem revisão.
 
-> **Licença pendente.** Ainda não há licença de reutilização definida (não existe `LICENSE`; o projeto usa `UNLICENSED`). Enquanto a decisão não for registrada em [ADR-0006](docs/adr/0006-licenca-pendente.md), **não aceitamos contribuições externas significativas** — abra uma issue para discutir antes de investir tempo em código. Pequenas correções de documentação/typos podem ser propostas para discussão.
+> **Licença:** [Apache-2.0](LICENSE) (Copyright 2026 Zuno contributors, ver [NOTICE](NOTICE)). Contribuições são aceitas sob esses termos — ver [ADR-0006](docs/adr/0006-licenca-apache-2.0.md). Ao enviar um PR você concorda em licenciar sua contribuição sob a mesma licença.
 
 ## Antes de começar
 

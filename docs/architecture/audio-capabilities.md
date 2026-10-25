@@ -87,7 +87,7 @@ Limitação:       obrigatório quando limited
 
 Procedimentos planejados — ainda **não** executados:
 
-1. **`play`/`seek`**: faixa FLAC e MP3 longa (> 5 min); pausar, buscar para 80%, confirmar continuidade e tempo exibido.
+1. **`play`/`seek`**: faixa Opus longa (> 5 min); pausar, buscar para 80%, confirmar continuidade e tempo exibido. (A biblioteca é somente Opus desde a ADR-0007.)
 2. **`gapless`**: álbum com faixas emendadas (`track_no` contínuo, sem silêncio no arquivo); confirmar ausência de pausa audível.
 3. **`crossfade`**: 2 faixas com crossfade de 3 s; verificar sobreposição e ausência de clipping.
 4. **`eq`/`replaygain`**: comparar com e sem o recurso; confirmar que o processamento não distorce e que o ganho é reversível.

@@ -62,7 +62,7 @@ e o conjunto de arquivos já está versionado.
 - Revisão do CSP e das capacidades mínimas por janela.
 - Validação de acessibilidade e `reduced-motion`.
 
-## Advertência de licença
+## Licença
 
-O repositório ainda não possui uma licença de reutilização aprovada. Este crate é
-marcado como `UNLICENSED`/`publish = false` até a decisão final.
+Este crate é distribuído sob [Apache-2.0](../../../LICENSE), como o restante do repositório
+(ver [ADR-0006](../../../docs/adr/0006-licenca-apache-2.0.md)). `publish = false` apenas evita publicação acidental no crates.io.

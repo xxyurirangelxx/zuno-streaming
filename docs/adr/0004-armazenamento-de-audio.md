@@ -14,6 +14,11 @@ A biblioteca pode ter até 1.000 músicas no dimensionamento inicial, com arquiv
 - **Bytes de áudio ficam no filesystem**, em diretório configurado (`ZUNO_MUSIC_DIR`, reservado ao M1). **Nunca** no SQLite.
 - **Metadados e índices ficam no SQLite** (faixas, artistas, álbuns, arquivos, capas, jobs).
 - **Original-first:** o arquivo original é preservado por padrão; conversão (ex.: Opus 128 kbps VBR) é opt-in por importação e nunca recodifica silenciosamente um lossy.
+
+  > **Revisão (25/10/2026):** a política de formatos e de originais foi revista na [ADR-0007](0007-opus-formato-canonico.md).
+  > O servidor armazena e serve **apenas Opus 128 kbps VBR**; a conversão é feita no cliente que envia (Windows/Tauri, M4)
+  > e os originais permanecem no dispositivo do usuário. As demais decisões desta ADR (filesystem, IDs, `AudioStorage`,
+  > nunca apagar sem confirmação) continuam vigentes.
 - **IDs estáveis e independentes de caminho** (UUID/ULID ou equivalente) para faixas e arquivos. O caminho é atributo mutável, não chave.
 - **`AudioStorage`** abstrai o acesso ao filesystem (local no MVP); `transcode`/`fingerprint` são workers opcionais.
 - Escritas/movimentações relevantes devem ser atômicas e transacionais com o banco sempre que possível.
