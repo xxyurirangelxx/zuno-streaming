@@ -1,0 +1,14 @@
+{
+  "name": "@zuno/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tipos compartilhados dos contratos da API do Zuno.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@zuno/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cliente HTTP tipado da API do Zuno.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@zuno/shared-types": "*"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  }
+}

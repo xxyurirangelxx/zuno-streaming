@@ -1,0 +1,20 @@
+# Normaliza finais de linha no repositório (LF) independentemente do SO do dev.
+* text=auto eol=lf
+
+# Binários
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.mp3 binary
+*.flac binary
+*.ogg binary
+*.opus binary
+*.m4a binary
+
+# Scripts que precisam de LF para rodar em Linux/macOS
+*.sh text eol=lf
+*.ps1 text eol=crlf

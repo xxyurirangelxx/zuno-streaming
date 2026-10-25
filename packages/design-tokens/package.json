@@ -1,0 +1,17 @@
+{
+  "name": "@zuno/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tokens de design iniciais do Zuno (tema claro/escuro e acessibilidade).",
+  "license": "UNLICENSED",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./tokens.json": "./src/tokens.json"
+  },
+  "files": [
+    "src/tokens.css",
+    "src/tokens.json",
+    "README.md"
+  ]
+}

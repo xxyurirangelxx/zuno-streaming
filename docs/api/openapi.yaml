@@ -1,0 +1,138 @@
+openapi: 3.1.0
+
+info:
+  title: Zuno API
+  version: 0.1.0
+  summary: Contrato HTTP do servidor Zuno.
+  description: |
+    Contrato mínimo do marco M0. Apenas o healthcheck está implementado.
+
+    Endpoints de biblioteca, autenticação, streaming e sincronização são
+    planejados para M1+ e não fazem parte deste documento até serem
+    implementados e testados.
+
+    Erros da API seguem o formato `{ "code": "snake_case", "message": "texto" }`.
+  license:
+    name: Licença pendente (sem arquivo LICENSE)
+
+servers:
+  - url: http://127.0.0.1:8080
+    description: Desenvolvimento local (bind padrão, não exposto publicamente).
+
+tags:
+  - name: system
+    description: Saúde e informações operacionais do servidor.
+
+paths:
+  /health:
+    get:
+      tags:
+        - system
+      operationId: getHealth
+      summary: Verifica a saúde do servidor e do banco.
+      description: |
+        Responde `200` quando o banco responde a uma consulta trivial e
+        `503` quando o banco está indisponível. Nos dois casos o corpo segue
+        o schema `HealthResponse`.
+
+        Este endpoint é público e não exige autenticação por não expor dados
+        sensíveis. O servidor escuta em `127.0.0.1` por padrão.
+      responses:
+        '200':
+          description: Serviço e banco operacionais.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                service: zuno-server
+                version: 0.1.0
+                uptime_seconds: 12
+                database:
+                  status: ok
+        '503':
+          description: Banco de dados indisponível; serviço degradado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: degraded
+                service: zuno-server
+                version: 0.1.0
+                uptime_seconds: 42
+                database:
+                  status: error
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      description: Estado do serviço e do banco de dados.
+      required:
+        - status
+        - service
+        - version
+        - uptime_seconds
+        - database
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          description: Estado geral. `ok` em 200, `degraded` em 503.
+          enum:
+            - ok
+            - degraded
+        service:
+          type: string
+          description: Nome canônico do serviço.
+          const: zuno-server
+        version:
+          type: string
+          description: Versão do servidor.
+          examples:
+            - 0.1.0
+        uptime_seconds:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Segundos desde o início do processo.
+        database:
+          $ref: '#/components/schemas/DatabaseHealth'
+
+    DatabaseHealth:
+      type: object
+      description: Estado do subsistema de banco de dados.
+      required:
+        - status
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          description: '`ok` quando a consulta trivial responde; `error` caso contrário.'
+          enum:
+            - ok
+            - error
+
+    ApiErrorBody:
+      type: object
+      description: |
+        Corpo padrão de erro da API. Usado por respostas de erro que não são
+        o healthcheck (por exemplo, `404` para rota inexistente e `500` para
+        falhas internas).
+      required:
+        - code
+        - message
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: 'Código estável em `snake_case` (ex.: `not_found`, `internal_error`).'
+          examples:
+            - not_found
+        message:
+          type: string
+          description: Mensagem legível para humanos, em PT-BR.
+          examples:
+            - recurso não encontrado

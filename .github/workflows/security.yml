@@ -1,0 +1,56 @@
+# Segurança e supply chain.
+#
+# O secret scanning nativo do GitHub (incluindo push protection) deve ser habilitado
+# nas configurações do repositório. Nenhum segredo é commitado neste projeto: a
+# configuração do servidor vem apenas de variáveis de ambiente (ver `.env.example`).
+# Falhas de advisory de severidade alta bloqueiam o merge, pois estes jobs são
+# checks obrigatórios da branch protegida. Exceções são explícitas e justificadas em
+# `.cargo/audit.toml` (lido automaticamente pelo `cargo audit`).
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Auditar dependências Rust
+        run: cargo audit
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Auditar dependências npm
+        run: npm audit --audit-level=high

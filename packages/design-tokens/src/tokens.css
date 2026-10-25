@@ -1,0 +1,109 @@
+/*
+ * Tokens provisórios, amostrados da logo; validação visual no M2.
+ * Cores de marca (ciano, azul, índigo, violeta, magenta e navy) foram amostradas
+ * de `logo.png` e ajustadas para contraste AA nos temas claro e escuro.
+ */
+
+:root {
+  color-scheme: light;
+
+  --zuno-surface: #f7f8fc;
+  --zuno-surface-muted: #edf1fa;
+  --zuno-glass-bg: rgba(255, 255, 255, 0.72);
+  --zuno-glass-border: rgba(6, 22, 58, 0.14);
+
+  --zuno-accent-cyan: #0e7490;
+  --zuno-accent-blue: #0757d9;
+  --zuno-accent-indigo: #3730c9;
+  --zuno-accent-violet: #6d28d9;
+  --zuno-accent-magenta: #a21caf;
+
+  --zuno-ink: #06163a;
+  --zuno-text-primary: #0b1533;
+  --zuno-text-secondary: #47526e;
+  --zuno-border: #c9d1e6;
+  --zuno-radius: 1rem;
+  --zuno-motion-duration: 180ms;
+  --zuno-shadow: 0 18px 45px rgba(6, 22, 58, 0.12);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --zuno-surface: #050b1d;
+  --zuno-surface-muted: #0b1530;
+  --zuno-glass-bg: rgba(12, 23, 50, 0.64);
+  --zuno-glass-border: rgba(148, 190, 255, 0.22);
+
+  --zuno-accent-cyan: #67e8f9;
+  --zuno-accent-blue: #7cb2ff;
+  --zuno-accent-indigo: #9aa8ff;
+  --zuno-accent-violet: #c4a2ff;
+  --zuno-accent-magenta: #f4a3ff;
+
+  --zuno-ink: #e8eeff;
+  --zuno-text-primary: #f2f6ff;
+  --zuno-text-secondary: #b7c3e0;
+  --zuno-border: #2a3b66;
+  --zuno-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --zuno-surface: #050b1d;
+    --zuno-surface-muted: #0b1530;
+    --zuno-glass-bg: rgba(12, 23, 50, 0.64);
+    --zuno-glass-border: rgba(148, 190, 255, 0.22);
+
+    --zuno-accent-cyan: #67e8f9;
+    --zuno-accent-blue: #7cb2ff;
+    --zuno-accent-indigo: #9aa8ff;
+    --zuno-accent-violet: #c4a2ff;
+    --zuno-accent-magenta: #f4a3ff;
+
+    --zuno-ink: #e8eeff;
+    --zuno-text-primary: #f2f6ff;
+    --zuno-text-secondary: #b7c3e0;
+    --zuno-border: #2a3b66;
+    --zuno-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --zuno-motion-duration: 0ms;
+  }
+}
+
+[data-reduced-motion='true'] {
+  --zuno-motion-duration: 0ms;
+}
+
+/* Fallback opaco: o vidro deixa de depender de blur/translucidez. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --zuno-glass-bg: var(--zuno-surface);
+    --zuno-glass-border: var(--zuno-border);
+  }
+}
+
+[data-reduced-transparency='true'] {
+  --zuno-glass-bg: var(--zuno-surface);
+  --zuno-glass-border: var(--zuno-border);
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --zuno-text-secondary: var(--zuno-text-primary);
+    --zuno-border: var(--zuno-text-primary);
+    --zuno-glass-border: var(--zuno-text-primary);
+  }
+}
+
+[data-contrast='more'] {
+  --zuno-text-secondary: var(--zuno-text-primary);
+  --zuno-border: var(--zuno-text-primary);
+  --zuno-glass-border: var(--zuno-text-primary);
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissões mínimas do app desktop",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

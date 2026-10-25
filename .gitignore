@@ -1,0 +1,42 @@
+# Rust
+/target/
+**/target/
+Cargo.lock.bak
+
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Tauri
+apps/desktop/src-tauri/gen/
+
+# Runtime data (never commit music, databases or caches)
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test / tool output
+playwright-report/
+test-results/
+*.log
+
+# Artefatos temporários de desenvolvimento (nunca versionados)
+/tmp/
