@@ -54,6 +54,7 @@ impl TestEnv {
             database_url,
             music_dir,
             artwork_dir: dir.path().join("artwork"),
+            staging_dir: dir.path().join("staging"),
             max_audio_file_bytes,
             scan_on_startup: false,
             db_max_connections: 2,

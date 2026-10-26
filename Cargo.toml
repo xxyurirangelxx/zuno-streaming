@@ -15,11 +15,13 @@ publish = false
 
 [workspace.dependencies]
 anyhow = "1"
+argon2 = "0.5"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 infer = "0.22"
 lofty = "0.25"
+rand_core = { version = "0.6", features = ["getrandom"] }
 sha2 = "0.10"
-uuid = { version = "1", features = ["v7", "serde"] }
+uuid = { version = "1", features = ["v7", "v4", "serde"] }
 walkdir = "2.5"
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }

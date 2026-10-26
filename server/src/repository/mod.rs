@@ -15,6 +15,7 @@ use crate::domain::dto::StreamTarget;
 use crate::domain::{AudioFileDraft, ScanIssue, ScanReport, TrackDraft, normalize_key};
 
 pub mod library;
+pub mod uploads;
 
 /// Expressão SQLite de "agora" no formato ISO-8601 UTC (mesmo padrão das migrations).
 const NOW_SQL: &str = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
@@ -781,4 +782,16 @@ pub async fn get_stream_target(pool: &SqlitePool, track_id: &str) -> Result<Opti
         })
     })
     .transpose()
+}
+
+/// Retorna o `track_id` associado a um caminho relativo (se indexado).
+pub async fn find_track_id_by_path(
+    pool: &SqlitePool,
+    relative_path: &str,
+) -> Result<Option<String>> {
+    sqlx::query_scalar("SELECT track_id FROM audio_files WHERE relative_path = ?1")
+        .bind(relative_path)
+        .fetch_optional(pool)
+        .await
+        .context("falha ao consultar faixa pelo caminho")
 }

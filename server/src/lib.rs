@@ -1,12 +1,14 @@
 //! Servidor Zuno: fundação HTTP, configuração, banco SQLite e biblioteca musical.
 
 pub mod api;
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod domain;
 pub mod error;
 pub mod library;
 pub mod repository;
+pub mod upload;
 
 pub use api::{AppState, build_router};
 pub use config::Config;

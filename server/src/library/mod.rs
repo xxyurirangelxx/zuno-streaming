@@ -149,6 +149,48 @@ impl LibraryScanner {
         }
     }
 
+    /// Indexa (ou reindexa) **um único** caminho relativo já presente na biblioteca.
+    ///
+    /// Usado pelo upload (M1c) depois da movimentação atômica, para não varrer a
+    /// biblioteca inteira a cada arquivo enviado. Devolve os problemas encontrados
+    /// (arquivo inválido, grande demais, duplicata exata etc.).
+    pub async fn index_relative_path(
+        &self,
+        db: &Database,
+        relative_path: &str,
+    ) -> Result<Vec<ScanIssue>> {
+        let root = self.root.clone();
+        let artwork_dir = self.artwork_dir.clone();
+        let relative = relative_path.to_string();
+        let max_file_bytes = self.options.max_file_bytes;
+
+        let (candidate, mut issues) =
+            tokio::task::spawn_blocking(move || candidate_for(&root, &relative, max_file_bytes))
+                .await
+                .context("tarefa de resolução do arquivo falhou")??;
+
+        let Some(candidate) = candidate else {
+            return Ok(issues);
+        };
+
+        let extract_artwork = self.options.extract_artwork;
+        let (processed, processing_issues) = tokio::task::spawn_blocking(move || {
+            process_files(vec![candidate], &artwork_dir, extract_artwork)
+        })
+        .await
+        .context("tarefa de extração de metadados falhou")?;
+        issues.extend(processing_issues);
+
+        let states = repository::load_audio_file_states(db.pool()).await?;
+        for file in processed {
+            if let Some(issue) = self.persist_file(db, &states, file).await? {
+                issues.push(issue);
+            }
+        }
+
+        Ok(issues)
+    }
+
     async fn run_scan(&self, db: &Database, scan_run_id: &str) -> Result<ScanReport> {
         let root = self.root.clone();
         let artwork_dir = self.artwork_dir.clone();
@@ -478,6 +520,114 @@ fn collect_candidates(
     }
 
     Ok((candidates, issues, files_seen))
+}
+
+/// Resolve e valida um único arquivo relativo à raiz da biblioteca.
+fn candidate_for(
+    root: &Path,
+    relative: &str,
+    max_file_bytes: u64,
+) -> Result<(Option<Candidate>, Vec<ScanIssue>)> {
+    let mut issues = Vec::new();
+    let path = root.join(relative);
+    let relative_path = relative.replace('\\', "/");
+
+    let symlink_metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            issues.push(ScanIssue {
+                relative_path,
+                code: ScanIssueCode::ReadError,
+                detail: Some(error.to_string()),
+            });
+            return Ok((None, issues));
+        }
+    };
+
+    if symlink_metadata.file_type().is_symlink() {
+        issues.push(ScanIssue {
+            relative_path,
+            code: ScanIssueCode::SymlinkSkipped,
+            detail: Some("links simbólicos não são indexados".to_string()),
+        });
+        return Ok((None, issues));
+    }
+
+    let absolute = match fs::canonicalize(&path) {
+        Ok(path) => path,
+        Err(error) => {
+            issues.push(ScanIssue {
+                relative_path,
+                code: ScanIssueCode::ReadError,
+                detail: Some(error.to_string()),
+            });
+            return Ok((None, issues));
+        }
+    };
+
+    if !absolute.starts_with(root) {
+        issues.push(ScanIssue {
+            relative_path,
+            code: ScanIssueCode::OutsideRoot,
+            detail: Some("o caminho resolve para fora da biblioteca".to_string()),
+        });
+        return Ok((None, issues));
+    }
+
+    let extension = absolute
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    if !AUDIO_EXTENSIONS.contains(&extension.as_str()) {
+        issues.push(ScanIssue {
+            relative_path,
+            code: ScanIssueCode::UnsupportedFormat,
+            detail: Some(format!("extensão '.{extension}' não é Opus (ADR-0007)")),
+        });
+        return Ok((None, issues));
+    }
+
+    let metadata = match fs::metadata(&absolute) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            issues.push(ScanIssue {
+                relative_path,
+                code: ScanIssueCode::ReadError,
+                detail: Some(error.to_string()),
+            });
+            return Ok((None, issues));
+        }
+    };
+
+    if metadata.len() > max_file_bytes {
+        issues.push(ScanIssue {
+            relative_path,
+            code: ScanIssueCode::TooLarge,
+            detail: Some(format!(
+                "{} bytes excede o limite de {max_file_bytes} bytes",
+                metadata.len()
+            )),
+        });
+        return Ok((None, issues));
+    }
+
+    let source_mtime = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or_default();
+
+    let candidate = Candidate {
+        relative_path,
+        absolute,
+        size_bytes: metadata.len(),
+        source_mtime,
+    };
+
+    Ok((Some(candidate), issues))
 }
 
 fn process_files(
