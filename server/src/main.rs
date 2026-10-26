@@ -91,7 +91,11 @@ async fn serve(config: &Config, database: Database) -> Result<()> {
         scanner.scan(&database).await?;
     }
 
-    let state = AppState::new(database.pool().clone(), env!("CARGO_PKG_VERSION"));
+    let state = AppState::new(
+        database.pool().clone(),
+        config.clone(),
+        env!("CARGO_PKG_VERSION"),
+    );
     let app = build_router(state);
 
     let listener = TcpListener::bind(config.bind_addr)

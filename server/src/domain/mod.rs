@@ -7,6 +7,8 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+pub mod dto;
+
 /// Normaliza texto para comparação (trim, minúsculas, espaços colapsados).
 ///
 /// Não remove acentos: a busca sem acento é responsabilidade do tokenizer do FTS5.
