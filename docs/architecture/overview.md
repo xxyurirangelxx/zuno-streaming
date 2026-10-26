@@ -8,12 +8,15 @@ O Zuno é um **monólito modular Rust** com um único executável de servidor (`
 
 O que existe hoje:
 
-- `GET /health` — único endpoint, sem autenticação, usado para provar o caminho HTTP completo (cliente → Axum → SQLite).
+- `GET /health` — endpoint HTTP sem autenticação, usado para provar o caminho completo (cliente → Axum → SQLite).
+- **Scanner de biblioteca** (`zuno-server scan`, M1a): indexa Opus, extrai tags/capas, detecta duplicatas e ausências
+  e grava `scan_runs`/`scan_issues`. Ver [`docs/milestones/M1a.md`](../milestones/M1a.md) e [RFC-0001](../rfcs/0001-modelo-de-dominio-m1.md).
 - Configuração tipada por variáveis de ambiente, pool SQLite com WAL e `foreign_keys=ON`, migrations embutidas no binário.
 - Erros da API padronizados em `{ "code": "snake_case", "message": "texto" }`.
 - Frontend `@zuno/web` com uma página de conectividade que consulta `/health` via proxy do Vite.
 
-O que **não** existe (planejado para M1+): scan de biblioteca, tags, streaming HTTP com `Range`, autenticação/RBAC, playlists, histórico, sync, recomendações, upload, WebSocket, backup/restore, app Tauri compilado.
+O que **não** existe: streaming HTTP com `Range` e API de biblioteca (M1b), upload/staging (M1c), autenticação/RBAC,
+playlists, histórico, sync, recomendações, WebSocket, backup/restore e app Tauri compilado.
 
 ## 2. Arquitetura atual (M0)
 

@@ -19,6 +19,9 @@ async fn test_context() -> TestContext {
         bind_addr: "127.0.0.1:0".parse().expect("bind de teste"),
         database_url,
         music_dir: dir.path().join("music"),
+        artwork_dir: dir.path().join("artwork"),
+        max_audio_file_bytes: 10 * 1024 * 1024,
+        scan_on_startup: false,
         db_max_connections: 2,
     };
 

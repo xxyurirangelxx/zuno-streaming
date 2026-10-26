@@ -129,16 +129,18 @@ zuno/
 ### M1 — Servidor musical
 
 > **Decisões fechadas (25/10/2026):** biblioteca **somente Opus 128 kbps VBR** (ADR-0007); servidor **não converte** — a conversão é do cliente Windows/Tauri (M4); M1 **sem autenticação**, bind loopback (ADR-0008); entrega em 3 PRs (M1a schema+scanner, M1b streaming, M1c upload/staging); fixtures de áudio sintéticas geradas com ffmpeg; alvo armv7 (Pi 3 B 32-bit) com hardware pendente.
+>
+> **Status (25/10/2026): M1a concluído** (migration 0002, domínio, scanner e 56 testes) — evidências em [`docs/milestones/M1a.md`](docs/milestones/M1a.md). M1b (streaming/API) e M1c (upload) pendentes.
 
-- [ ] Configuração validada com caminhos, limites e permissões de SO.
-- [ ] Entity model: Track/Artist/Album/AudioFile/Artwork e index FTS.
-- [ ] Scanner incremental + manual + reentrada após interrupção; **aceitar apenas Opus** e reportar os demais formatos sem mover/apagar.
-- [ ] Extração de tags com Lofty; preservação de provenance; filenames fallback.
-- [ ] Proteger import por staging, tamanho, MIME/probe, checksum, symlink/path traversal; **rejeitar upload não-Opus (415)**.
-- [ ] Tratar duplicatas e ausência de arquivo sem deleção automática.
-- [ ] Streaming GET/HEAD com Range e cancelamento (sem auth no M1; loopback only).
-- [ ] Capa embutida e reduzida em cache; fallback.
-- [ ] Integração API list/search/filter/cursor e documentação.
+- [x] Configuração validada com caminhos, limites e permissões de SO. *(M1a: `ZUNO_MUSIC_DIR`, `ZUNO_ARTWORK_DIR`, `ZUNO_MAX_AUDIO_FILE_BYTES`, `ZUNO_SCAN_ON_STARTUP`)*
+- [x] Entity model: Track/Artist/Album/AudioFile/Artwork e index FTS. *(M1a: migration `0002` + FTS5)*
+- [x] Scanner incremental + manual + reentrada após interrupção; **aceitar apenas Opus** e reportar os demais formatos sem mover/apagar. *(M1a: `zuno-server scan`, idempotente por mtime+tamanho)*
+- [x] Extração de tags com Lofty; preservação de provenance; filenames fallback. *(M1a: título pelo nome do arquivo quando não há tag)*
+- [ ] Proteger import por staging, tamanho, MIME/probe, checksum, symlink/path traversal; **rejeitar upload não-Opus (415)**. *(M1c)*
+- [x] Tratar duplicatas e ausência de arquivo sem deleção automática. *(M1a: `duplicate_exact` + `available=0`)*
+- [ ] Streaming GET/HEAD com Range e cancelamento (sem auth no M1; loopback only). *(M1b)*
+- [x] Capa embutida em cache; fallback. *(M1a: extração + cache por sha256; **resize no M1b**)*
+- [ ] Integração API list/search/filter/cursor e documentação. *(M1b; busca FTS já existe no repositório)*
 
 **Gate M1:** servidor serve **Opus** em LAN com seek e restrições; formatos diferentes de Opus são rejeitados/ignorados com relatório claro e **sem deleção**; testes de seek, arquivos ausentes e uploads interrompidos passam. Medição em hardware: Pi 3 B (armv7) **pendente** até o hardware estar disponível — até lá, cross-compile + CI + x86-64.
 
