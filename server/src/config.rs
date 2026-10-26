@@ -47,6 +47,8 @@ pub struct Config {
     pub max_audio_file_bytes: u64,
     /// Executa uma varredura da biblioteca na inicialização do servidor.
     pub scan_on_startup: bool,
+    /// Marca o cookie de sessão como `Secure` (exija HTTPS no deploy).
+    pub cookie_secure: bool,
     /// Número máximo de conexões no pool SQLite.
     pub db_max_connections: u32,
 }
@@ -98,6 +100,11 @@ impl Config {
             None => false,
         };
 
+        let cookie_secure = match non_empty(read("ZUNO_COOKIE_SECURE")) {
+            Some(raw) => parse_bool("ZUNO_COOKIE_SECURE", &raw)?,
+            None => false,
+        };
+
         let db_max_connections = match non_empty(read("ZUNO_DB_MAX_CONNECTIONS")) {
             Some(raw) => parse_max_connections(&raw)?,
             None => DEFAULT_DB_MAX_CONNECTIONS,
@@ -111,6 +118,7 @@ impl Config {
             staging_dir,
             max_audio_file_bytes,
             scan_on_startup,
+            cookie_secure,
             db_max_connections,
         })
     }
@@ -126,6 +134,7 @@ impl fmt::Debug for Config {
             .field("staging_dir", &self.staging_dir)
             .field("max_audio_file_bytes", &self.max_audio_file_bytes)
             .field("scan_on_startup", &self.scan_on_startup)
+            .field("cookie_secure", &self.cookie_secure)
             .field("db_max_connections", &self.db_max_connections)
             .finish()
     }

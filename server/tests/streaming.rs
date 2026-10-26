@@ -9,10 +9,13 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 use zuno_server::{AppState, Config, Database, LibraryScanner, ScanOptions, build_router};
 
+mod common;
+
 struct TestEnv {
     _dir: TempDir,
     database: Database,
     config: Config,
+    cookie: String,
     track_id: String,
     audio_path: PathBuf,
     audio_size: u64,
@@ -41,6 +44,7 @@ async fn setup() -> TestEnv {
         staging_dir: dir.path().join("staging"),
         max_audio_file_bytes: 10 * 1024 * 1024,
         scan_on_startup: false,
+        cookie_secure: false,
         db_max_connections: 2,
     };
 
@@ -64,11 +68,13 @@ async fn setup() -> TestEnv {
 
     let audio_path = music_dir.join("tone-a.opus");
     let audio_size = fs::metadata(&audio_path).expect("metadados").len();
+    let cookie = common::admin_cookie(database.pool()).await;
 
     TestEnv {
         _dir: dir,
         database,
         config,
+        cookie,
         track_id,
         audio_path,
         audio_size,
@@ -90,7 +96,10 @@ async fn request(
     uri: &str,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMap, Vec<u8>) {
-    let mut builder = Request::builder().method(method).uri(uri);
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::COOKIE, env.cookie.as_str());
     for (name, value) in headers {
         builder = builder.header(*name, *value);
     }

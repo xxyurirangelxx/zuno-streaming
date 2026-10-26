@@ -57,6 +57,7 @@ impl TestEnv {
             staging_dir: dir.path().join("staging"),
             max_audio_file_bytes,
             scan_on_startup: false,
+            cookie_secure: false,
             db_max_connections: 2,
         };
         let database = Database::connect(&config)

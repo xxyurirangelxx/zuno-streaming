@@ -171,21 +171,25 @@ pub async fn find_valid_session(
 
 /// Marca a sessão como vista agora (best effort, não bloqueia a requisição).
 pub async fn touch_session(pool: &SqlitePool, session_id: &str) -> Result<()> {
-    sqlx::query("UPDATE sessions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1")
-        .bind(session_id)
-        .execute(pool)
-        .await
-        .context("falha ao atualizar sessão")?;
+    sqlx::query(
+        "UPDATE sessions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+    )
+    .bind(session_id)
+    .execute(pool)
+    .await
+    .context("falha ao atualizar sessão")?;
     Ok(())
 }
 
 /// Revoga uma sessão (logout ou rotação).
 pub async fn revoke_session(pool: &SqlitePool, session_id: &str) -> Result<()> {
-    sqlx::query("UPDATE sessions SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1")
-        .bind(session_id)
-        .execute(pool)
-        .await
-        .context("falha ao revogar sessão")?;
+    sqlx::query(
+        "UPDATE sessions SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+    )
+    .bind(session_id)
+    .execute(pool)
+    .await
+    .context("falha ao revogar sessão")?;
     Ok(())
 }
 
@@ -371,24 +375,22 @@ pub async fn record_audit(
     target: Option<&str>,
     detail: Option<&str>,
 ) -> Result<()> {
-    sqlx::query("INSERT INTO audit_events (actor_id, action, target, detail) VALUES (?1, ?2, ?3, ?4)")
-        .bind(actor_id)
-        .bind(action)
-        .bind(target)
-        .bind(detail)
-        .execute(pool)
-        .await
-        .context("falha ao registrar auditoria")?;
+    sqlx::query(
+        "INSERT INTO audit_events (actor_id, action, target, detail) VALUES (?1, ?2, ?3, ?4)",
+    )
+    .bind(actor_id)
+    .bind(action)
+    .bind(target)
+    .bind(detail)
+    .execute(pool)
+    .await
+    .context("falha ao registrar auditoria")?;
 
     Ok(())
 }
 
 /// Define um novo hash de senha e revoga as sessões existentes.
-pub async fn update_password(
-    pool: &SqlitePool,
-    user_id: &str,
-    password_hash: &str,
-) -> Result<()> {
+pub async fn update_password(pool: &SqlitePool, user_id: &str, password_hash: &str) -> Result<()> {
     sqlx::query("UPDATE users SET password_hash = ?1 WHERE id = ?2")
         .bind(password_hash)
         .bind(user_id)

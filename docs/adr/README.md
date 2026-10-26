@@ -15,6 +15,7 @@ Registro das decisões relevantes do Zuno. Cada ADR é imutável depois de aceit
 | [0007](0007-opus-formato-canonico.md) | Opus 128 kbps VBR canônico e conversão no cliente | Accepted | 2026-10-25 |
 | [0008](0008-m1-sem-autenticacao.md) | M1 sem autenticação (loopback, temporária) | Accepted (expira no M2) | 2026-10-25 |
 | [0009](0009-dependencias-e-ids-m1.md) | Dependências do servidor musical e IDs UUIDv7 | Accepted | 2026-10-25 |
+| [0010](0010-autenticacao-e-sessoes.md) | Autenticação por sessão em cookie, Argon2id e papéis fixos | Accepted | 2026-10-26 |
 
 ## Convenção de status
 

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -16,10 +16,18 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 use zuno_server::{AppState, Config, Database, build_router};
 
+mod common;
+
 struct TestEnv {
     dir: TempDir,
     database: Database,
     config: Config,
+    cookie: String,
+}
+
+struct AuthedApp {
+    router: Router,
+    cookie: String,
 }
 
 impl TestEnv {
@@ -44,26 +52,32 @@ impl TestEnv {
             staging_dir: dir.path().join("staging"),
             max_audio_file_bytes,
             scan_on_startup: false,
+            cookie_secure: false,
             db_max_connections: 2,
         };
 
         let database = Database::connect(&config)
             .await
             .expect("banco de teste deve conectar");
+        let cookie = common::admin_cookie(database.pool()).await;
 
         Self {
             dir,
             database,
             config,
+            cookie,
         }
     }
 
-    fn app(&self) -> Router {
-        build_router(AppState::new(
-            self.database.pool().clone(),
-            self.config.clone(),
-            "0.1.0",
-        ))
+    fn app(&self) -> AuthedApp {
+        AuthedApp {
+            router: build_router(AppState::new(
+                self.database.pool().clone(),
+                self.config.clone(),
+                "0.1.0",
+            )),
+            cookie: self.cookie.clone(),
+        }
     }
 
     fn staging_files(&self) -> Vec<PathBuf> {
@@ -117,8 +131,18 @@ fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-async fn send(app: &Router, request: Request<Body>) -> (StatusCode, Value) {
-    let response = app.clone().oneshot(request).await.expect("requisição");
+async fn send(app: &AuthedApp, mut request: Request<Body>) -> (StatusCode, Value) {
+    request.headers_mut().insert(
+        header::COOKIE,
+        app.cookie.parse().expect("cookie de teste válido"),
+    );
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("requisição");
     let status = response.status();
     let bytes = response
         .into_body()
@@ -136,7 +160,7 @@ async fn send(app: &Router, request: Request<Body>) -> (StatusCode, Value) {
     (status, body)
 }
 
-async fn upload(app: &Router, filename: Option<&str>, bytes: Vec<u8>) -> (StatusCode, Value) {
+async fn upload(app: &AuthedApp, filename: Option<&str>, bytes: Vec<u8>) -> (StatusCode, Value) {
     let mut builder = Request::builder()
         .method("POST")
         .uri("/api/v1/uploads")
@@ -149,7 +173,7 @@ async fn upload(app: &Router, filename: Option<&str>, bytes: Vec<u8>) -> (Status
     send(app, builder.body(Body::from(bytes)).expect("requisição")).await
 }
 
-async fn get_upload(app: &Router, upload_id: &str) -> (StatusCode, Value) {
+async fn get_upload(app: &AuthedApp, upload_id: &str) -> (StatusCode, Value) {
     let request = Request::builder()
         .method("GET")
         .uri(format!("/api/v1/uploads/{upload_id}"))
@@ -158,7 +182,7 @@ async fn get_upload(app: &Router, upload_id: &str) -> (StatusCode, Value) {
     send(app, request).await
 }
 
-async fn complete_upload(app: &Router, upload_id: &str) -> (StatusCode, Value) {
+async fn complete_upload(app: &AuthedApp, upload_id: &str) -> (StatusCode, Value) {
     let request = Request::builder()
         .method("POST")
         .uri(format!("/api/v1/uploads/{upload_id}/complete"))
@@ -167,7 +191,7 @@ async fn complete_upload(app: &Router, upload_id: &str) -> (StatusCode, Value) {
     send(app, request).await
 }
 
-async fn delete_upload(app: &Router, upload_id: &str) -> (StatusCode, Value) {
+async fn delete_upload(app: &AuthedApp, upload_id: &str) -> (StatusCode, Value) {
     let request = Request::builder()
         .method("DELETE")
         .uri(format!("/api/v1/uploads/{upload_id}"))
@@ -176,7 +200,7 @@ async fn delete_upload(app: &Router, upload_id: &str) -> (StatusCode, Value) {
     send(app, request).await
 }
 
-async fn get_track(app: &Router, track_id: &str) -> (StatusCode, Value) {
+async fn get_track(app: &AuthedApp, track_id: &str) -> (StatusCode, Value) {
     let request = Request::builder()
         .method("GET")
         .uri(format!("/api/v1/tracks/{track_id}"))

@@ -14,6 +14,7 @@ use sqlx::{QueryBuilder, SqliteConnection, SqlitePool};
 use crate::domain::dto::StreamTarget;
 use crate::domain::{AudioFileDraft, ScanIssue, ScanReport, TrackDraft, normalize_key};
 
+pub mod auth;
 pub mod library;
 pub mod uploads;
 

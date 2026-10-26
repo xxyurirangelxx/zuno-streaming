@@ -2,18 +2,23 @@ openapi: 3.1.0
 
 info:
   title: Zuno API
-  version: 0.2.0
+  version: 0.3.0
   summary: Contrato HTTP do servidor Zuno.
   description: |
     Contrato do M1b: healthcheck, biblioteca (faixas, álbuns, artistas, busca),
     capas e streaming com `Range`.
 
-    Autenticação **não** existe nesta versão (ADR-0008): o servidor escuta apenas
-    em loopback e não deve ser exposto à rede antes do M2.
+    Autenticação (M2a): sessão em cookie `zuno_session` (HttpOnly, SameSite=Lax).
+    Públicas: `GET /health`, `GET /api/v1/setup/status`, `POST /api/v1/setup/claim`,
+    `POST /api/v1/auth/login` e `POST /api/v1/invitations/redeem`. As demais exigem
+    cookie de sessão válido.
 
     Erros seguem `{ "code": "snake_case", "message": "texto" }`.
   license:
     name: Apache-2.0
+
+security:
+  - cookieAuth: []
 
 servers:
   - url: http://127.0.0.1:8080
@@ -29,6 +34,7 @@ paths:
     get:
       tags: [system]
       operationId: getHealth
+      security: []
       summary: Saúde do servidor e do banco.
       responses:
         '200':
@@ -216,6 +222,187 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/setup/status:
+    get:
+      tags: [auth]
+      operationId: getSetupStatus
+      security: []
+      summary: Indica se a instância ainda precisa de setup inicial.
+      responses:
+        '200':
+          description: Estado do setup.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [required]
+                properties:
+                  required: { type: boolean }
+
+  /api/v1/setup/claim:
+    post:
+      tags: [auth]
+      operationId: claimSetup
+      security: []
+      summary: Reivindica o primeiro administrador com o código de setup (uso único).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, username, password]
+              properties:
+                code: { type: string }
+                username: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: Administrador criado; cookie de sessão definido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      summary: Autentica com usuário e senha e define o cookie de sessão.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Sessão criada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyAttempts' }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Revoga a sessão atual e limpa o cookie.
+      responses:
+        '204': { description: Sessão revogada. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshSession
+      summary: Rotaciona o token da sessão (revoga o anterior).
+      responses:
+        '200':
+          description: Nova sessão.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: Usuário da sessão atual.
+      responses:
+        '200':
+          description: Usuário autenticado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/invitations:
+    get:
+      tags: [auth]
+      operationId: listInvitations
+      summary: Lista convites (admin).
+      responses:
+        '200':
+          description: Convites recentes (sem token).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/InvitationItem' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [auth]
+      operationId: createInvitation
+      summary: Cria convite para `user` ou `moderator` (admin).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                role: { type: string, enum: [user, moderator], default: user }
+                expires_in_days: { type: integer, minimum: 1, maximum: 30, default: 7 }
+      responses:
+        '200':
+          description: Convite criado; o token aparece uma única vez.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedInvitation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/invitations/{id}:
+    delete:
+      tags: [auth]
+      operationId: revokeInvitation
+      summary: Revoga um convite pendente (admin).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Convite revogado. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/invitations/redeem:
+    post:
+      tags: [auth]
+      operationId: redeemInvitation
+      security: []
+      summary: Cria conta a partir de um convite válido (uso único).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, username, password]
+              properties:
+                token: { type: string }
+                username: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: Conta criada; cookie de sessão definido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   responses:
     BadRequest:
@@ -229,7 +416,69 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ApiErrorBody' }
 
+    Unauthorized:
+      description: Sessão ausente/inválida ou credenciais incorretas.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorBody' }
+    Forbidden:
+      description: Permissão insuficiente.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorBody' }
+    Conflict:
+      description: Conflito de estado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorBody' }
+    TooManyAttempts:
+      description: Muitas tentativas de login.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorBody' }
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: zuno_session
+
   schemas:
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, username, role]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        role: { type: string, enum: [admin, moderator, user] }
+
+    SessionResponse:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+
+    CreatedInvitation:
+      type: object
+      additionalProperties: false
+      required: [id, token, role, expires_in_days]
+      properties:
+        id: { type: string, format: uuid }
+        token: { type: string, description: 'Aparece apenas na criação.' }
+        role: { type: string, enum: [user, moderator] }
+        expires_in_days: { type: integer }
+
+    InvitationItem:
+      type: object
+      additionalProperties: false
+      required: [id, role, expires_at, redeemed_at, revoked_at]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [user, moderator] }
+        expires_at: { type: string }
+        redeemed_at: { type: [string, 'null'] }
+        revoked_at: { type: [string, 'null'] }
     HealthResponse:
       type: object
       additionalProperties: false

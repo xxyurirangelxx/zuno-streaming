@@ -5,6 +5,8 @@
 use anyhow::{Context, Result};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
+use zuno_server::auth::{generate_setup_code, hash_token};
+use zuno_server::repository::auth as auth_repo;
 use zuno_server::{AppState, Config, Database, LibraryScanner, ScanOptions, build_router};
 
 const DEFAULT_LOG_FILTER: &str = "info,zuno_server=debug";
@@ -85,6 +87,8 @@ async fn scan_library(config: &Config, database: &Database) -> Result<()> {
 }
 
 async fn serve(config: &Config, database: Database) -> Result<()> {
+    ensure_setup_code(&database).await?;
+
     if config.scan_on_startup {
         tracing::info!("ZUNO_SCAN_ON_STARTUP ativo; varrendo a biblioteca antes de servir");
         let scanner = LibraryScanner::new(config, ScanOptions::from_config(config))?;
@@ -115,6 +119,35 @@ async fn serve(config: &Config, database: Database) -> Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("o servidor HTTP terminou com erro")
+}
+
+/// Gera o código de setup inicial quando ainda não existe usuário.
+///
+/// O código aparece **uma única vez** no log e é guardado apenas como hash.
+async fn ensure_setup_code(database: &Database) -> Result<()> {
+    if auth_repo::count_users(database.pool()).await? > 0 {
+        return Ok(());
+    }
+
+    if auth_repo::has_valid_setup_token(database.pool()).await? {
+        return Ok(());
+    }
+
+    let code = generate_setup_code();
+    auth_repo::insert_setup_token(
+        database.pool(),
+        &uuid::Uuid::now_v7().to_string(),
+        &hash_token(&code),
+        "+24 hours",
+    )
+    .await?;
+
+    tracing::warn!(
+        setup_code = %code,
+        "nenhum usuário cadastrado: reivindique o administrador com POST /api/v1/setup/claim (código válido por 24 h)"
+    );
+
+    Ok(())
 }
 
 fn init_tracing() -> Result<()> {

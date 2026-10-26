@@ -9,10 +9,13 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 use zuno_server::{AppState, Config, Database, LibraryScanner, ScanOptions, build_router};
 
+mod common;
+
 struct TestEnv {
     _dir: TempDir,
     database: Database,
     config: Config,
+    cookie: String,
     artwork_id: String,
     derived_dir: std::path::PathBuf,
 }
@@ -40,6 +43,7 @@ async fn setup() -> TestEnv {
         staging_dir: dir.path().join("staging"),
         max_audio_file_bytes: 10 * 1024 * 1024,
         scan_on_startup: false,
+        cookie_secure: false,
         db_max_connections: 2,
     };
 
@@ -56,11 +60,13 @@ async fn setup() -> TestEnv {
         .fetch_one(database.pool())
         .await
         .expect("capa indexada");
+    let cookie = common::admin_cookie(database.pool()).await;
 
     TestEnv {
         _dir: dir,
         database,
         config,
+        cookie,
         artwork_id,
         derived_dir: artwork_dir.join("derived"),
     }
@@ -79,6 +85,7 @@ async fn get(env: &TestEnv, uri: &str) -> (StatusCode, axum::http::HeaderMap, Ve
         .oneshot(
             Request::builder()
                 .uri(uri)
+                .header(header::COOKIE, env.cookie.as_str())
                 .body(Body::empty())
                 .expect("request"),
         )
