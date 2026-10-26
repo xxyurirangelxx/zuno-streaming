@@ -609,6 +609,7 @@ mod tests {
             staging_dir,
             max_audio_file_bytes: 1024 * 1024,
             scan_on_startup: false,
+            cookie_secure: false,
             db_max_connections: 1,
         }
     }

@@ -13,10 +13,18 @@ use zuno_server::domain::{AudioFileDraft, TrackDraft, normalize_key};
 use zuno_server::repository::{self, ArtworkDraft};
 use zuno_server::{AppState, Config, Database, build_router};
 
+mod common;
+
 struct TestContext {
     _dir: TempDir,
     db: Database,
     config: Config,
+    cookie: String,
+}
+
+struct AuthedApp {
+    router: axum::Router,
+    cookie: String,
 }
 
 async fn test_context() -> TestContext {
@@ -31,26 +39,32 @@ async fn test_context() -> TestContext {
         staging_dir: dir.path().join("staging"),
         max_audio_file_bytes: 10 * 1024 * 1024,
         scan_on_startup: false,
+        cookie_secure: false,
         db_max_connections: 2,
     };
 
     let db = Database::connect(&config)
         .await
         .expect("banco de teste deve conectar");
+    let cookie = common::admin_cookie(db.pool()).await;
 
     TestContext {
         _dir: dir,
         db,
         config,
+        cookie,
     }
 }
 
-fn app_for(context: &TestContext) -> axum::Router {
-    build_router(AppState::new(
-        context.db.pool().clone(),
-        context.config.clone(),
-        "0.1.0",
-    ))
+fn app_for(context: &TestContext) -> AuthedApp {
+    AuthedApp {
+        router: build_router(AppState::new(
+            context.db.pool().clone(),
+            context.config.clone(),
+            "0.1.0",
+        )),
+        cookie: context.cookie.clone(),
+    }
 }
 
 fn track_draft(
@@ -201,12 +215,14 @@ async fn seed(pool: &SqlitePool) -> Fixture {
     }
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
+async fn get_json(app: &AuthedApp, uri: &str) -> (StatusCode, Value) {
     let response = app
+        .router
         .clone()
         .oneshot(
             Request::builder()
                 .uri(uri)
+                .header(axum::http::header::COOKIE, app.cookie.as_str())
                 .body(Body::empty())
                 .expect("request"),
         )

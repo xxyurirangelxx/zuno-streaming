@@ -10,6 +10,8 @@
 //!   sem token adicional;
 //! * limite de tentativas de login em memória (por usuário normalizado).
 
+pub mod middleware;
+
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Mutex;

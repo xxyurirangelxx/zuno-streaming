@@ -146,9 +146,11 @@ zuno/
 
 ### M2 — Web funcional, auth e biblioteca
 
-- [ ] Instalação de primeiro admin local com código único e expiração.
-- [ ] Login senha/Argon2id, sessão refresh revogável e convite com validade.
-- [ ] Papéis: admin/moderador/usuário, defaults restritivos, testes IDOR.
+> **Status (26/10/2026): M2a concluído** (auth/RBAC/convites) — evidências em [`docs/milestones/M2a.md`](docs/milestones/M2a.md). Frontend (M2b–M2e) pendente.
+
+- [x] Instalação de primeiro admin local com código único e expiração. *(M2a)*
+- [x] Login senha/Argon2id, sessão refresh revogável e convite com validade. *(M2a)*
+- [x] Papéis: admin/moderador/usuário, defaults restritivos, testes IDOR. *(M2a: 110 testes, incluindo 401/403/CSRF)*
 - [ ] Web shell, temas claro/escuro/sistema e navegação responsiva.
 - [ ] Música, álbum, artista, capa, search instantânea e filtros.
 - [ ] Player com fila, shuffle, repeat, seek e teclas básicas.

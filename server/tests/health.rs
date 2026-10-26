@@ -24,6 +24,7 @@ async fn test_context() -> TestContext {
         staging_dir: dir.path().join("staging"),
         max_audio_file_bytes: 10 * 1024 * 1024,
         scan_on_startup: false,
+        cookie_secure: false,
         db_max_connections: 2,
     };
 

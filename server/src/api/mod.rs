@@ -1,9 +1,12 @@
 //! Composição da API HTTP.
 
 pub mod artwork;
+pub mod auth;
 pub mod health;
+pub mod invitations;
 pub mod library;
 pub mod pagination;
+pub mod setup;
 pub mod stream;
 pub mod uploads;
 
@@ -15,11 +18,12 @@ use axum::Router;
 use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use sqlx::SqlitePool;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
+use crate::auth::LoginRateLimiter;
 use crate::config::Config;
 use crate::error::ApiError;
 
@@ -36,6 +40,8 @@ pub struct AppState {
     pub started_at: Instant,
     /// Versão do servidor exposta no healthcheck.
     pub version: &'static str,
+    /// Limitador de tentativas de login (em memória).
+    pub login_limiter: Arc<LoginRateLimiter>,
 }
 
 impl AppState {
@@ -46,6 +52,7 @@ impl AppState {
             config: Arc::new(config),
             started_at: Instant::now(),
             version,
+            login_limiter: Arc::new(LoginRateLimiter::default()),
         }
     }
 
@@ -57,8 +64,7 @@ impl AppState {
 
 /// Monta o roteador completo com tracing, timeout e fallback JSON.
 pub fn build_router(state: AppState) -> Router {
-    Router::new()
-        .route("/health", get(health::health))
+    let protected = Router::new()
         .route("/api/v1/tracks", get(library::list_tracks))
         .route("/api/v1/tracks/{id}", get(library::get_track))
         .route(
@@ -78,7 +84,30 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/uploads/{id}/complete",
             post(uploads::complete_upload),
         )
+        .route("/api/v1/me", get(auth::me))
+        .route("/api/v1/auth/refresh", post(auth::refresh))
+        .route("/api/v1/auth/logout", post(auth::logout))
+        .route(
+            "/api/v1/invitations",
+            get(invitations::list).post(invitations::create),
+        )
+        .route("/api/v1/invitations/{id}", delete(invitations::revoke))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::auth::middleware::require_auth,
+        ));
+
+    Router::new()
+        .route("/health", get(health::health))
+        .route("/api/v1/setup/status", get(setup::status))
+        .route("/api/v1/setup/claim", post(setup::claim))
+        .route("/api/v1/auth/login", post(auth::login))
+        .route("/api/v1/invitations/redeem", post(invitations::redeem))
+        .merge(protected)
         .fallback(not_found)
+        .layer(middleware::from_fn(
+            crate::auth::middleware::same_origin_guard,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

@@ -21,6 +21,21 @@ pub enum ApiError {
     /// Recurso solicitado não existe.
     #[error("recurso não encontrado")]
     NotFound,
+    /// Sessão ausente, inválida ou expirada.
+    #[error("autenticação necessária")]
+    Unauthorized,
+    /// Credenciais inválidas (mensagem genérica).
+    #[error("usuário ou senha inválidos")]
+    InvalidCredentials,
+    /// Papel insuficiente para a operação.
+    #[error("permissão insuficiente")]
+    Forbidden,
+    /// Limite de tentativas de login excedido.
+    #[error("muitas tentativas; tente novamente em alguns minutos")]
+    TooManyAttempts,
+    /// Conflito de estado (ex.: nome de usuário já usado, upload não pendente).
+    #[error("conflito: {0}")]
+    Conflict(&'static str),
     /// Parâmetro de paginação inválido.
     #[error("cursor de paginação inválido")]
     InvalidCursor,
@@ -93,6 +108,31 @@ impl IntoResponse for ApiError {
                 StatusCode::NOT_FOUND,
                 "not_found",
                 "recurso não encontrado".to_string(),
+            ),
+            Self::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "autenticação necessária".to_string(),
+            ),
+            Self::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_credentials",
+                "usuário ou senha inválidos".to_string(),
+            ),
+            Self::Forbidden => (
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                "permissão insuficiente".to_string(),
+            ),
+            Self::TooManyAttempts => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too_many_attempts",
+                "muitas tentativas; tente novamente em alguns minutos".to_string(),
+            ),
+            Self::Conflict(reason) => (
+                StatusCode::CONFLICT,
+                "conflict",
+                format!("conflito: {reason}"),
             ),
             Self::InvalidCursor => (
                 StatusCode::BAD_REQUEST,
