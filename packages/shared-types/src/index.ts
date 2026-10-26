@@ -159,6 +159,46 @@ export interface SearchResponse {
   artists: ArtistSummary[];
 }
 
+// --- Uploads --------------------------------------------------------------
+
+/** Estados de um upload no staging e após a indexação. */
+export type UploadStatus = 'staged' | 'indexed' | 'duplicate' | 'failed';
+
+/** Resposta de `POST /api/v1/uploads` (201). */
+export interface UploadCreated {
+  upload_id: string;
+  original_filename: string;
+  size_bytes: number;
+  sha256: string;
+  status: 'staged';
+}
+
+/** Resposta de `GET /api/v1/uploads/{id}`. */
+export interface UploadDetail {
+  upload_id: string;
+  original_filename: string;
+  size_bytes: number;
+  sha256: string;
+  status: UploadStatus;
+  track_id: string | null;
+  error: string | null;
+}
+
+/** Resposta de `POST /api/v1/uploads/{id}/complete` em 200 ou 409. */
+export interface UploadCompleteResponse {
+  upload_id: string;
+  status: 'indexed' | 'duplicate';
+  track_id: string;
+}
+
+/** Progresso real do envio binário (XHR). */
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  /** Percentual inteiro entre 0 e 100; 0 quando o total é desconhecido. */
+  percent: number;
+}
+
 // --- Playlists e favoritos ------------------------------------------------
 
 export type PlaylistVisibility = 'private' | 'unlisted';

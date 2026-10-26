@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Zuno API
-  version: 0.4.0
+  version: 0.5.0
   summary: Contrato HTTP do servidor Zuno.
   description: |
     Contrato do M1b: healthcheck, biblioteca (faixas, álbuns, artistas, busca),
@@ -31,6 +31,7 @@ tags:
   - name: auth
   - name: playlists
   - name: favorites
+  - name: uploads
 
 paths:
   /health:
@@ -603,6 +604,95 @@ paths:
         '204': { description: Favorito removido. }
         '400': { $ref: '#/components/responses/BadRequest' }
 
+  /api/v1/uploads:
+    post:
+      tags: [uploads]
+      operationId: createUpload
+      summary: Envia um arquivo Opus para staging (corpo binário bruto).
+      parameters:
+        - name: X-Zuno-Filename
+          in: header
+          required: true
+          schema: { type: string }
+          description: Nome original, usado apenas como metadado.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: Arquivo em staging, validado como Opus.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: Arquivo maior que ZUNO_MAX_AUDIO_FILE_BYTES.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorBody' }
+        '415':
+          description: Formato diferente de Opus.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorBody' }
+        '422':
+          description: Arquivo Opus inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorBody' }
+
+  /api/v1/uploads/{id}:
+    get:
+      tags: [uploads]
+      operationId: getUpload
+      summary: Status de um upload.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Upload.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [uploads]
+      operationId: deleteUpload
+      summary: Descarta o arquivo em staging (nunca toca na biblioteca).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Staging descartado. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/uploads/{id}/complete:
+    post:
+      tags: [uploads]
+      operationId: completeUpload
+      summary: Move para a biblioteca e indexa; duplicata responde 409.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Indexado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadComplete' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Conteúdo já existe na biblioteca (nada é sobrescrito).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadComplete' }
+        '422':
+          description: Arquivo Opus inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorBody' }
+
 components:
   responses:
     BadRequest:
@@ -643,6 +733,38 @@ components:
       name: zuno_session
 
   schemas:
+    UploadCreated:
+      type: object
+      additionalProperties: false
+      required: [upload_id, original_filename, size_bytes, sha256, status]
+      properties:
+        upload_id: { type: string, format: uuid }
+        original_filename: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        sha256: { type: string }
+        status: { type: string, enum: [staged] }
+
+    UploadDetail:
+      type: object
+      additionalProperties: false
+      required: [upload_id, original_filename, size_bytes, sha256, status, track_id, error]
+      properties:
+        upload_id: { type: string, format: uuid }
+        original_filename: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        sha256: { type: [string, 'null'] }
+        status: { type: string, enum: [staged, indexed, duplicate, failed] }
+        track_id: { type: [string, 'null'], format: uuid }
+        error: { type: [string, 'null'] }
+
+    UploadComplete:
+      type: object
+      additionalProperties: false
+      required: [upload_id, status, track_id]
+      properties:
+        upload_id: { type: string, format: uuid }
+        status: { type: string, enum: [indexed, duplicate, not_pending] }
+        track_id: { type: [string, 'null'], format: uuid }
     PlaylistSummary:
       type: object
       additionalProperties: false

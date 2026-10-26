@@ -146,7 +146,7 @@ zuno/
 
 ### M2 — Web funcional, auth e biblioteca
 
-> **Status (26/10/2026): M2a, M2b e M2c concluídos** — evidências em [`M2a`](docs/milestones/M2a.md), [`M2b`](docs/milestones/M2b.md) e [`M2c`](docs/milestones/M2c.md). Upload UI (M2d) e preferências/privacidade/histórico + E2E (M2e) pendentes.
+> **Status (26/10/2026): M2a–M2d concluídos** — evidências em [`M2a`](docs/milestones/M2a.md), [`M2b`](docs/milestones/M2b.md), [`M2c`](docs/milestones/M2c.md) e [`M2d`](docs/milestones/M2d.md). Preferências/privacidade/histórico + E2E (M2e) pendentes.
 
 - [x] Instalação de primeiro admin local com código único e expiração. *(M2a)*
 - [x] Login senha/Argon2id, sessão refresh revogável e convite com validade. *(M2a)*
@@ -155,7 +155,7 @@ zuno/
 - [x] Música, álbum, artista, capa, search instantânea e filtros. *(M2b: listas + busca com debounce; filtros avançados no M2e)*
 - [x] Player com fila, shuffle, repeat, seek e teclas básicas. *(M2b)*
 - [x] Playlists por usuário e favoritos separados; compartilhamento somente autorizado. *(M2c: ownership 404, favoritos idempotentes; link público no M2e)*
-- [ ] Web upload progressivo com revisão de duplicatas. *(M2d)*
+- [x] Web upload progressivo com revisão de duplicatas. *(M2d: fila sequencial, progresso real, 409 com link)*
 - [ ] Preferências, privacidade, histórico individual. *(M2e)*
 
 **Gate M2:** admin configura instância, convida usuário, importa pasta, pessoa toca música, cria playlist, sai/reentra; outro usuário não consegue consultar seus dados privados.

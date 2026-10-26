@@ -26,6 +26,9 @@ export interface SessionContextValue {
   retry: () => void;
   /** Chamado quando uma requisição autenticada falha com 401. */
   expireSession: () => void;
+  /** Incrementado após mudanças na biblioteca (ex.: upload indexado). */
+  libraryRevision: number;
+  notifyLibraryChanged: () => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -41,6 +44,7 @@ function toApiError(error: unknown): ZunoApiError {
 export function AuthProvider({ client, children }: { client: ZunoClient; children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const [libraryRevision, setLibraryRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -129,6 +133,10 @@ export function AuthProvider({ client, children }: { client: ZunoClient; childre
     setAttempt((value) => value + 1);
   }, []);
 
+  const notifyLibraryChanged = useCallback(() => {
+    setLibraryRevision((value) => value + 1);
+  }, []);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       client,
@@ -139,8 +147,21 @@ export function AuthProvider({ client, children }: { client: ZunoClient; childre
       logout,
       retry,
       expireSession,
+      libraryRevision,
+      notifyLibraryChanged,
     }),
-    [client, state, login, setupClaim, redeemInvitation, logout, retry, expireSession],
+    [
+      client,
+      state,
+      login,
+      setupClaim,
+      redeemInvitation,
+      logout,
+      retry,
+      expireSession,
+      libraryRevision,
+      notifyLibraryChanged,
+    ],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -26,6 +26,10 @@ import type {
   TrackDetail,
   TrackListResponse,
   UpdatePlaylistRequest,
+  UploadCompleteResponse,
+  UploadCreated,
+  UploadDetail,
+  UploadProgress,
   User,
 } from '@zuno/shared-types';
 
@@ -40,6 +44,14 @@ export interface ZunoClientOptions {
   fetchImpl?: typeof fetch;
   /** Timeout por requisição, em milissegundos. Padrão: 5000. */
   timeoutMs?: number;
+  /** Injeção do construtor de `XMLHttpRequest` para testes de upload. */
+  xhrFactory?: () => XMLHttpRequest;
+}
+
+export interface UploadRequestOptions {
+  /** Progresso real do envio do corpo binário. */
+  onProgress?: (progress: UploadProgress) => void;
+  signal?: AbortSignal;
 }
 
 export interface ZunoClient {
@@ -106,6 +118,12 @@ export interface ZunoClient {
   addFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void>;
   removeFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void>;
 
+  // Uploads
+  createUpload(file: File, options?: UploadRequestOptions): Promise<UploadCreated>;
+  getUpload(id: string, signal?: AbortSignal): Promise<UploadDetail>;
+  completeUpload(id: string, signal?: AbortSignal): Promise<UploadCompleteResponse>;
+  deleteUpload(id: string, signal?: AbortSignal): Promise<void>;
+
   // Mídia
   artworkUrl(id: string, size?: ArtworkSize): string;
   streamUrl(id: string): string;
@@ -115,12 +133,20 @@ export class ZunoApiError extends Error {
   readonly code: string;
   /** Status HTTP ou `null` para falha de rede/timeout. */
   readonly status: number | null;
+  /** Corpo JSON já interpretado, quando houver (ex.: `track_id` em 409). */
+  readonly body: unknown;
 
-  constructor(code: string, message: string, status: number | null, options?: ErrorOptions) {
+  constructor(
+    code: string,
+    message: string,
+    status: number | null,
+    options?: ErrorOptions & { body?: unknown },
+  ) {
     super(message, options);
     this.name = 'ZunoApiError';
     this.code = code;
     this.status = status;
+    this.body = options?.body ?? null;
   }
 }
 
@@ -214,6 +240,7 @@ function apiErrorFrom(body: unknown, status: number): ZunoApiError {
     apiError?.code ?? 'http_error',
     apiError?.message ?? `O servidor respondeu com HTTP ${status}.`,
     status,
+    { body },
   );
 }
 
@@ -231,6 +258,10 @@ function timeoutError(): ZunoApiError {
     'O servidor não respondeu dentro do tempo limite. Verifique a conexão e tente novamente.',
     null,
   );
+}
+
+function canceledError(): ZunoApiError {
+  return new ZunoApiError('canceled', 'A operação foi cancelada.', null);
 }
 
 function networkError(cause: unknown): ZunoApiError {
@@ -270,6 +301,7 @@ export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
     options.timeoutMs !== undefined && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
       ? options.timeoutMs
       : DEFAULT_TIMEOUT_MS;
+  const xhrFactory = options.xhrFactory ?? (() => new XMLHttpRequest());
 
   async function request<T>(
     path: string,
@@ -300,6 +332,10 @@ export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
           throw timeoutError();
         }
 
+        if (signal?.aborted) {
+          throw canceledError();
+        }
+
         throw networkError(error);
       }
 
@@ -322,6 +358,111 @@ export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
     } finally {
       timeout.cleanup();
     }
+  }
+
+  function createUpload(
+    file: File,
+    uploadOptions: UploadRequestOptions = {},
+  ): Promise<UploadCreated> {
+    const { onProgress, signal } = uploadOptions;
+
+    if (signal?.aborted) {
+      return Promise.reject(canceledError());
+    }
+
+    return new Promise<UploadCreated>((resolve, reject) => {
+      const xhr = xhrFactory();
+      let settled = false;
+
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+      };
+
+      const fail = (error: ZunoApiError) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      const succeed = (value: UploadCreated) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const onAbort = () => {
+        xhr.abort();
+        fail(canceledError());
+      };
+
+      xhr.open('POST', `${baseUrl}${API_PREFIX}/uploads`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('X-Zuno-Filename', file.name);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+      xhr.upload.onprogress = (event) => {
+        if (!onProgress || event.lengthComputable === false) {
+          return;
+        }
+
+        const percent = event.total > 0 ? Math.round((event.loaded / event.total) * 100) : 0;
+        onProgress({ loaded: event.loaded, total: event.total, percent });
+      };
+
+      xhr.onload = () => {
+        let parsed: unknown = null;
+
+        if (xhr.responseText.length > 0) {
+          try {
+            parsed = JSON.parse(xhr.responseText);
+          } catch {
+            fail(invalidResponse(xhr.status));
+            return;
+          }
+        }
+
+        if (xhr.status < 200 || xhr.status >= 300) {
+          fail(apiErrorFrom(parsed, xhr.status));
+          return;
+        }
+
+        if (!isRecord(parsed) || typeof parsed.upload_id !== 'string') {
+          fail(invalidResponse(xhr.status));
+          return;
+        }
+
+        succeed(parsed as unknown as UploadCreated);
+      };
+
+      xhr.onerror = () => {
+        fail(networkError(new Error('Falha de rede no upload.')));
+      };
+
+      xhr.ontimeout = () => {
+        fail(timeoutError());
+      };
+
+      xhr.onabort = () => {
+        fail(canceledError());
+      };
+
+      signal?.addEventListener('abort', onAbort, { once: true });
+
+      try {
+        xhr.send(file);
+      } catch (error) {
+        fail(networkError(error));
+      }
+    });
   }
 
   return {
@@ -714,6 +855,47 @@ export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
         () => undefined,
         { method: 'DELETE', signal },
       );
+    },
+
+    createUpload,
+
+    async getUpload(id: string, signal?: AbortSignal): Promise<UploadDetail> {
+      return request(
+        `${API_PREFIX}/uploads/${encodeURIComponent(id)}`,
+        (body, response) => {
+          requireOk(body, response);
+          if (!isRecord(body) || typeof body.upload_id !== 'string') {
+            throw invalidResponse(response.status);
+          }
+          return body as unknown as UploadDetail;
+        },
+        { signal },
+      );
+    },
+
+    async completeUpload(id: string, signal?: AbortSignal): Promise<UploadCompleteResponse> {
+      return request(
+        `${API_PREFIX}/uploads/${encodeURIComponent(id)}/complete`,
+        (body, response) => {
+          requireOk(body, response);
+          if (
+            !isRecord(body) ||
+            typeof body.upload_id !== 'string' ||
+            typeof body.track_id !== 'string'
+          ) {
+            throw invalidResponse(response.status);
+          }
+          return body as unknown as UploadCompleteResponse;
+        },
+        { method: 'POST', signal },
+      );
+    },
+
+    async deleteUpload(id: string, signal?: AbortSignal): Promise<void> {
+      return request<void>(`${API_PREFIX}/uploads/${encodeURIComponent(id)}`, () => undefined, {
+        method: 'DELETE',
+        signal,
+      });
     },
 
     artworkUrl(id: string, size: ArtworkSize = 'full'): string {

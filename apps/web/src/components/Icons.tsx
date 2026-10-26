@@ -190,6 +190,17 @@ export function TrashIcon({ className }: IconProps) {
   );
 }
 
+export function UploadIcon({ className }: IconProps) {
+  return iconBase(
+    className,
+    <>
+      <path d="M12 16V4" />
+      <path d="m7 9 5-5 5 5" />
+      <path d="M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
+    </>,
+  );
+}
+
 export function PlaylistIcon({ className }: IconProps) {
   return iconBase(
     className,

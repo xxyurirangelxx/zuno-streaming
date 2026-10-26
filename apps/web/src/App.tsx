@@ -10,6 +10,7 @@ import { LibraryView } from './components/LibraryView';
 import { PlaylistDetailView } from './components/PlaylistDetailView';
 import { PlaylistsView } from './components/PlaylistsView';
 import { SearchView } from './components/SearchView';
+import { UploadView } from './components/UploadView';
 import { ErrorState } from './components/States';
 import { FavoritesProvider } from './favorites/FavoritesProvider';
 import { describeApiError } from './lib/errors';
@@ -62,6 +63,8 @@ function Routes() {
       return <HomeView />;
     case 'search':
       return <SearchView />;
+    case 'upload':
+      return <UploadView />;
     case 'library':
       return <LibraryView kind={route.kind} />;
     case 'playlists':
