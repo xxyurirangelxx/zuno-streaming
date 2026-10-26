@@ -76,6 +76,13 @@ impl Database {
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
+
+    /// Reutiliza um pool já migrado (usado pela API, que guarda apenas o pool).
+    ///
+    /// Não aplica migrations: quem constrói o pool é responsável por isso.
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
 }
 
 fn ensure_parent_directory(database_url: &str) -> Result<()> {

@@ -5,6 +5,7 @@ pub mod health;
 pub mod library;
 pub mod pagination;
 pub mod stream;
+pub mod uploads;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -14,7 +15,7 @@ use axum::Router;
 use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use sqlx::SqlitePool;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
@@ -68,6 +69,15 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/artists", get(library::list_artists))
         .route("/api/v1/search", get(library::search))
         .route("/api/v1/artworks/{id}", get(artwork::get_artwork))
+        .route("/api/v1/uploads", post(uploads::create_upload))
+        .route(
+            "/api/v1/uploads/{id}",
+            get(uploads::get_upload).delete(uploads::delete_upload),
+        )
+        .route(
+            "/api/v1/uploads/{id}/complete",
+            post(uploads::complete_upload),
+        )
         .fallback(not_found)
         .layer(TraceLayer::new_for_http())
         .layer(TimeoutLayer::with_status_code(

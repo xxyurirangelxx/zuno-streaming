@@ -14,6 +14,8 @@ pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/zuno.db";
 pub const DEFAULT_MUSIC_DIR: &str = "./data/music";
 /// Diretório padrão do cache de capas extraídas.
 pub const DEFAULT_ARTWORK_DIR: &str = "./data/artwork";
+/// Diretório padrão de staging de uploads (fora da biblioteca).
+pub const DEFAULT_STAGING_DIR: &str = "./data/staging";
 /// Limite padrão de tamanho por arquivo de áudio (500 MiB).
 pub const DEFAULT_MAX_AUDIO_FILE_BYTES: u64 = 500 * 1024 * 1024;
 /// Limite inferior aceito para `ZUNO_MAX_AUDIO_FILE_BYTES`.
@@ -39,6 +41,8 @@ pub struct Config {
     pub music_dir: PathBuf,
     /// Diretório do cache de capas extraídas.
     pub artwork_dir: PathBuf,
+    /// Diretório de staging de uploads (nunca dentro de `ZUNO_MUSIC_DIR`).
+    pub staging_dir: PathBuf,
     /// Tamanho máximo aceito por arquivo de áudio no scan.
     pub max_audio_file_bytes: u64,
     /// Executa uma varredura da biblioteca na inicialização do servidor.
@@ -80,6 +84,10 @@ impl Config {
             non_empty(read("ZUNO_ARTWORK_DIR")).unwrap_or_else(|| DEFAULT_ARTWORK_DIR.to_string()),
         );
 
+        let staging_dir = PathBuf::from(
+            non_empty(read("ZUNO_STAGING_DIR")).unwrap_or_else(|| DEFAULT_STAGING_DIR.to_string()),
+        );
+
         let max_audio_file_bytes = match non_empty(read("ZUNO_MAX_AUDIO_FILE_BYTES")) {
             Some(raw) => parse_max_audio_file_bytes(&raw)?,
             None => DEFAULT_MAX_AUDIO_FILE_BYTES,
@@ -100,6 +108,7 @@ impl Config {
             database_url,
             music_dir,
             artwork_dir,
+            staging_dir,
             max_audio_file_bytes,
             scan_on_startup,
             db_max_connections,
@@ -114,6 +123,7 @@ impl fmt::Debug for Config {
             .field("database_url", &"<redacted>")
             .field("music_dir", &self.music_dir)
             .field("artwork_dir", &self.artwork_dir)
+            .field("staging_dir", &self.staging_dir)
             .field("max_audio_file_bytes", &self.max_audio_file_bytes)
             .field("scan_on_startup", &self.scan_on_startup)
             .field("db_max_connections", &self.db_max_connections)
@@ -235,6 +245,7 @@ mod tests {
         let config = config_from(&[]).expect("config padrão deve ser válida");
 
         assert_eq!(config.artwork_dir, PathBuf::from(DEFAULT_ARTWORK_DIR));
+        assert_eq!(config.staging_dir, PathBuf::from(DEFAULT_STAGING_DIR));
         assert_eq!(config.max_audio_file_bytes, DEFAULT_MAX_AUDIO_FILE_BYTES);
         assert!(!config.scan_on_startup);
     }
@@ -243,12 +254,14 @@ mod tests {
     fn scan_and_artwork_settings_can_be_overridden() {
         let config = config_from(&[
             ("ZUNO_ARTWORK_DIR", "./tmp/covers"),
+            ("ZUNO_STAGING_DIR", "./tmp/staging"),
             ("ZUNO_MAX_AUDIO_FILE_BYTES", "1048576"),
             ("ZUNO_SCAN_ON_STARTUP", "true"),
         ])
         .expect("overrides válidos");
 
         assert_eq!(config.artwork_dir, PathBuf::from("./tmp/covers"));
+        assert_eq!(config.staging_dir, PathBuf::from("./tmp/staging"));
         assert_eq!(config.max_audio_file_bytes, 1_048_576);
         assert!(config.scan_on_startup);
     }

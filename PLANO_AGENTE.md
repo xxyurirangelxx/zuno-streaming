@@ -130,13 +130,13 @@ zuno/
 
 > **Decisões fechadas (25/10/2026):** biblioteca **somente Opus 128 kbps VBR** (ADR-0007); servidor **não converte** — a conversão é do cliente Windows/Tauri (M4); M1 **sem autenticação**, bind loopback (ADR-0008); entrega em 3 PRs (M1a schema+scanner, M1b streaming, M1c upload/staging); fixtures de áudio sintéticas geradas com ffmpeg; alvo armv7 (Pi 3 B 32-bit) com hardware pendente.
 >
-> **Status (25/10/2026): M1a e M1b concluídos** — evidências em [`docs/milestones/M1a.md`](docs/milestones/M1a.md) e [`docs/milestones/M1b.md`](docs/milestones/M1b.md). M1c (upload/staging) pendente.
+> **Status (26/10/2026): M1a, M1b e M1c concluídos** — evidências em [`docs/milestones/M1a.md`](docs/milestones/M1a.md), [`M1b`](docs/milestones/M1b.md) e [`M1c`](docs/milestones/M1c.md). Falta apenas a medição em Pi 3 B (hardware pendente) para fechar o gate.
 
 - [x] Configuração validada com caminhos, limites e permissões de SO. *(M1a: `ZUNO_MUSIC_DIR`, `ZUNO_ARTWORK_DIR`, `ZUNO_MAX_AUDIO_FILE_BYTES`, `ZUNO_SCAN_ON_STARTUP`)*
 - [x] Entity model: Track/Artist/Album/AudioFile/Artwork e index FTS. *(M1a: migration `0002` + FTS5)*
 - [x] Scanner incremental + manual + reentrada após interrupção; **aceitar apenas Opus** e reportar os demais formatos sem mover/apagar. *(M1a: `zuno-server scan`, idempotente por mtime+tamanho)*
 - [x] Extração de tags com Lofty; preservação de provenance; filenames fallback. *(M1a: título pelo nome do arquivo quando não há tag)*
-- [ ] Proteger import por staging, tamanho, MIME/probe, checksum, symlink/path traversal; **rejeitar upload não-Opus (415)**. *(M1c)*
+- [x] Proteger import por staging, tamanho, MIME/probe, checksum, symlink/path traversal; **rejeitar upload não-Opus (415)**. *(M1c: staging fora da biblioteca, sha256, 413/415/422, duplicata 409)*
 - [x] Tratar duplicatas e ausência de arquivo sem deleção automática. *(M1a: `duplicate_exact` + `available=0`)*
 - [x] Streaming GET/HEAD com Range e cancelamento (sem auth no M1; loopback only). *(M1b: 206/416/If-Range/HEAD)*
 - [x] Capa embutida e reduzida em cache; fallback. *(M1a extração; M1b resize 320/640 + cache imutável)*

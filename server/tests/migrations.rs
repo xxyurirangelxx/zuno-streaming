@@ -16,6 +16,7 @@ async fn test_context() -> TestContext {
         database_url: database_url.clone(),
         music_dir: dir.path().join("music"),
         artwork_dir: dir.path().join("artwork"),
+        staging_dir: dir.path().join("staging"),
         max_audio_file_bytes: 10 * 1024 * 1024,
         scan_on_startup: false,
         db_max_connections: 2,
@@ -47,7 +48,10 @@ async fn migrations_create_baseline_metadata() {
         .fetch_one(context.db.pool())
         .await
         .expect("histórico de migrations");
-    assert_eq!(applied, 2, "0001 (bootstrap) + 0002 (domínio musical)");
+    assert_eq!(
+        applied, 4,
+        "0001 bootstrap + 0002 domínio + 0003 uploads + 0004 auth"
+    );
 }
 
 #[tokio::test]
@@ -67,6 +71,12 @@ async fn sqlite_pragmas_are_enabled() {
         "audio_files",
         "artworks",
         "scan_runs",
+        "uploads",
+        "users",
+        "sessions",
+        "setup_tokens",
+        "invitations",
+        "audit_events",
     ] {
         let exists: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -101,6 +111,7 @@ async fn migrations_are_idempotent_on_reconnect() {
         database_url: context.database_url.clone(),
         music_dir: context._dir.path().join("music"),
         artwork_dir: context._dir.path().join("artwork"),
+        staging_dir: context._dir.path().join("staging"),
         max_audio_file_bytes: 10 * 1024 * 1024,
         scan_on_startup: false,
         db_max_connections: 2,
@@ -113,5 +124,5 @@ async fn migrations_are_idempotent_on_reconnect() {
         .fetch_one(reconnected.pool())
         .await
         .expect("histórico de migrations");
-    assert_eq!(applied, 2, "migrations não devem reaplicar");
+    assert_eq!(applied, 4, "migrations não devem reaplicar");
 }

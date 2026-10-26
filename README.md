@@ -13,12 +13,12 @@ O marco **M0 (fundação)** entregou o monorepo, o healthcheck, as migrations SQ
 | Item | Estado |
 |---|---|
 | M0 — Fundação | **Concluído** |
-| M1 — Servidor musical (scan, tags, streaming) | **Em andamento** (M1a e M1b concluídos; M1c pendente) |
+| M1 — Servidor musical (scan, tags, streaming, upload) | **Concluído** (falta medição em Pi 3 B) |
 | M2 em diante | Não iniciado |
 
 O que existe hoje:
 
-- `zuno-server`: binário Rust (Axum + Tokio + SQLx/SQLite) com `GET /health`, scanner (`zuno-server scan`), API de biblioteca/busca em `/api/v1`, streaming com `Range` e capas redimensionadas.
+- `zuno-server`: binário Rust (Axum + Tokio + SQLx/SQLite) com `GET /health`, scanner (`zuno-server scan`), API de biblioteca/busca em `/api/v1`, streaming com `Range`, capas redimensionadas e upload Opus com staging.
 - `@zuno/web`: página de conectividade React que consulta `/health`, com proxy de desenvolvimento para o backend.
 - Design tokens e tipos/contrato de API compartilhados (`packages/`).
 - Scaffold Tauri 2 em `apps/desktop/src-tauri` (não compilado no M0).
