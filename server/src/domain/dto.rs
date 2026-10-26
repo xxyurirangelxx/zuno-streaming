@@ -139,6 +139,44 @@ pub struct FavoritesResponse {
     pub artists: Vec<ArtistSummary>,
 }
 
+/// Preferências de interface do usuário autenticado.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Preferences {
+    pub theme: String,
+    pub language: String,
+}
+
+/// Preferências de privacidade do usuário autenticado.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Privacy {
+    pub allow_cloud_history: bool,
+    /// `None` significa que o histórico não expira.
+    pub history_retention_days: Option<i64>,
+}
+
+/// Identificador do evento de audição recém-registrado.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayEventCreated {
+    pub id: String,
+}
+
+/// Item do histórico de audição do usuário, com a faixa já resolvida.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HistoryItem {
+    pub id: String,
+    pub track: TrackSummary,
+    pub event_kind: String,
+    pub seconds: Option<f64>,
+    pub occurred_at: String,
+}
+
+/// Página do histórico de audição (keyset por `occurred_at DESC, id DESC`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HistoryPage {
+    pub items: Vec<HistoryItem>,
+    pub next_cursor: Option<String>,
+}
+
 /// Faixa + dados necessários para resolver o streaming (uso interno).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamTarget {

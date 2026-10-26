@@ -5,17 +5,20 @@ import { AuthProvider, useSession } from './app/AuthProvider';
 import { AuthScreen } from './app/AuthScreen';
 import { AppShell } from './components/AppShell';
 import { FavoritesView } from './components/FavoritesView';
+import { HistoryView } from './components/HistoryView';
 import { HomeView } from './components/HomeView';
 import { LibraryView } from './components/LibraryView';
 import { PlaylistDetailView } from './components/PlaylistDetailView';
 import { PlaylistsView } from './components/PlaylistsView';
 import { SearchView } from './components/SearchView';
+import { SettingsView } from './components/SettingsView';
 import { UploadView } from './components/UploadView';
 import { ErrorState } from './components/States';
 import { FavoritesProvider } from './favorites/FavoritesProvider';
 import { describeApiError } from './lib/errors';
 import { useRoute } from './lib/router';
 import { PlayerProvider } from './player/PlayerProvider';
+import { ThemeProvider } from './theme/ThemeProvider';
 
 const defaultBaseUrl = import.meta.env.VITE_ZUNO_API_BASE_URL ?? '';
 
@@ -73,6 +76,10 @@ function Routes() {
       return <PlaylistDetailView id={route.id} />;
     case 'favorites':
       return <FavoritesView kind={route.kind} />;
+    case 'history':
+      return <HistoryView />;
+    case 'settings':
+      return <SettingsView />;
   }
 }
 
@@ -92,13 +99,15 @@ function SessionGate() {
   }
 
   return (
-    <FavoritesProvider client={client}>
-      <PlayerProvider client={client}>
-        <AppShell>
-          <Routes />
-        </AppShell>
-      </PlayerProvider>
-    </FavoritesProvider>
+    <ThemeProvider client={client}>
+      <FavoritesProvider client={client}>
+        <PlayerProvider client={client}>
+          <AppShell>
+            <Routes />
+          </AppShell>
+        </PlayerProvider>
+      </FavoritesProvider>
+    </ThemeProvider>
   );
 }
 

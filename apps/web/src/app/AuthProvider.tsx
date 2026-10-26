@@ -176,3 +176,8 @@ export function useSession(): SessionContextValue {
 
   return context;
 }
+
+/** Variante para consumidores opcionais (ex.: player em testes isolados). */
+export function useSessionOptional(): SessionContextValue | null {
+  return useContext(SessionContext);
+}

@@ -259,3 +259,53 @@ export interface ListPageParams {
 
 /** Variantes aceitas por `GET /api/v1/artworks/{id}?size=`. */
 export type ArtworkSize = 'full' | 'thumb' | 'card' | number;
+
+// --- Preferências, privacidade e histórico --------------------------------
+
+export type ThemePreference = 'light' | 'dark' | 'system';
+
+export interface UserPreferences {
+  theme: ThemePreference;
+  language: string;
+}
+
+export interface UpdatePreferencesRequest {
+  theme?: ThemePreference;
+  language?: string;
+}
+
+export interface UserPrivacy {
+  allow_cloud_history: boolean;
+  history_retention_days: number | null;
+}
+
+export interface UpdatePrivacyRequest {
+  allow_cloud_history?: boolean;
+  history_retention_days?: number | null;
+}
+
+export type HistoryEventKind = 'play' | 'skip' | 'complete';
+
+export interface HistoryEventRequest {
+  track_id: string;
+  event_kind: HistoryEventKind;
+  seconds?: number;
+}
+
+export interface HistoryItem {
+  id: string;
+  track: TrackSummary;
+  event_kind: HistoryEventKind;
+  seconds: number | null;
+  occurred_at: string;
+}
+
+export interface HistoryResponse {
+  items: HistoryItem[];
+  next_cursor: string | null;
+}
+
+export interface HistoryListParams {
+  limit?: number;
+  cursor?: string;
+}

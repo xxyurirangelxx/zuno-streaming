@@ -50,8 +50,8 @@ async fn migrations_create_baseline_metadata() {
         .await
         .expect("histórico de migrations");
     assert_eq!(
-        applied, 5,
-        "0001 bootstrap + 0002 domínio + 0003 uploads + 0004 auth + 0005 playlists"
+        applied, 6,
+        "0001 bootstrap + 0002 domínio + 0003 uploads + 0004 auth + 0005 playlists + 0006 preferências/histórico"
     );
 }
 
@@ -81,6 +81,9 @@ async fn sqlite_pragmas_are_enabled() {
         "playlists",
         "playlist_items",
         "favorites",
+        "user_preferences",
+        "user_privacy",
+        "play_events",
     ] {
         let exists: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -129,5 +132,5 @@ async fn migrations_are_idempotent_on_reconnect() {
         .fetch_one(reconnected.pool())
         .await
         .expect("histórico de migrations");
-    assert_eq!(applied, 5, "migrations não devem reaplicar");
+    assert_eq!(applied, 6, "migrations não devem reaplicar");
 }

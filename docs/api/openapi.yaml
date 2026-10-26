@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Zuno API
-  version: 0.5.0
+  version: 0.6.0
   summary: Contrato HTTP do servidor Zuno.
   description: |
     Contrato do M1b: healthcheck, biblioteca (faixas, álbuns, artistas, busca),
@@ -32,6 +32,7 @@ tags:
   - name: playlists
   - name: favorites
   - name: uploads
+  - name: preferences
 
 paths:
   /health:
@@ -693,6 +694,134 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ApiErrorBody' }
 
+  /api/v1/me/preferences:
+    get:
+      tags: [preferences]
+      operationId: getPreferences
+      summary: Preferências do usuário (tema e idioma).
+      responses:
+        '200':
+          description: Preferências (defaults criados se necessário).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preferences' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [preferences]
+      operationId: updatePreferences
+      summary: Atualiza tema e/ou idioma.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                theme: { type: string, enum: [light, dark, system] }
+                language: { type: string, examples: [pt-BR] }
+      responses:
+        '200':
+          description: Preferências atualizadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preferences' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/me/privacy:
+    get:
+      tags: [preferences]
+      operationId: getPrivacy
+      summary: Consentimento de uso do histórico em nuvem e retenção.
+      responses:
+        '200':
+          description: Configuração de privacidade.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrivacySettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [preferences]
+      operationId: updatePrivacy
+      summary: Atualiza consentimento e retenção do próprio histórico.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                allow_cloud_history: { type: boolean }
+                history_retention_days: { type: [integer, 'null'], minimum: 1, maximum: 3650 }
+      responses:
+        '200':
+          description: Privacidade atualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrivacySettings' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/me/history:
+    get:
+      tags: [preferences]
+      operationId: listHistory
+      summary: Histórico de audição do próprio usuário (nunca de terceiros).
+      parameters:
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 200, default: 50 },
+          }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Página de eventos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [preferences]
+      operationId: recordHistory
+      summary: Registra um evento de reprodução do próprio usuário.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [track_id, event_kind]
+              properties:
+                track_id: { type: string, format: uuid }
+                event_kind: { type: string, enum: [play, skip, complete] }
+                seconds: { type: number, minimum: 0, maximum: 86400 }
+      responses:
+        '201':
+          description: Evento registrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [id]
+                properties:
+                  id: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [preferences]
+      operationId: clearHistory
+      summary: Apaga o histórico do próprio usuário.
+      responses:
+        '204': { description: Histórico apagado. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   responses:
     BadRequest:
@@ -733,6 +862,40 @@ components:
       name: zuno_session
 
   schemas:
+    Preferences:
+      type: object
+      additionalProperties: false
+      required: [theme, language]
+      properties:
+        theme: { type: string, enum: [light, dark, system] }
+        language: { type: string }
+
+    PrivacySettings:
+      type: object
+      additionalProperties: false
+      required: [allow_cloud_history, history_retention_days]
+      properties:
+        allow_cloud_history: { type: boolean }
+        history_retention_days: { type: [integer, 'null'] }
+
+    HistoryItem:
+      type: object
+      additionalProperties: false
+      required: [id, track, event_kind, seconds, occurred_at]
+      properties:
+        id: { type: string, format: uuid }
+        track: { $ref: '#/components/schemas/TrackSummary' }
+        event_kind: { type: string, enum: [play, skip, complete] }
+        seconds: { type: [number, 'null'] }
+        occurred_at: { type: string }
+
+    HistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/HistoryItem' } }
+        next_cursor: { type: [string, 'null'] }
     UploadCreated:
       type: object
       additionalProperties: false

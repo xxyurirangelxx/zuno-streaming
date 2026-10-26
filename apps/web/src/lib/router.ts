@@ -9,7 +9,9 @@ export type Route =
   | { name: 'upload' }
   | { name: 'playlists' }
   | { name: 'playlist'; id: string }
-  | { name: 'favorites'; kind: LibraryKind };
+  | { name: 'favorites'; kind: LibraryKind }
+  | { name: 'history' }
+  | { name: 'settings' };
 
 export const HOME_ROUTE: Route = { name: 'home' };
 
@@ -30,6 +32,14 @@ export function parseRoute(hash: string): Route {
 
   if (path === 'playlists') {
     return { name: 'playlists' };
+  }
+
+  if (path === 'history') {
+    return { name: 'history' };
+  }
+
+  if (path === 'settings') {
+    return { name: 'settings' };
   }
 
   if (path.startsWith('playlists/')) {
@@ -83,6 +93,10 @@ export function routeHref(route: Route): string {
       return `#/playlists/${encodeURIComponent(route.id)}`;
     case 'favorites':
       return `#/favorites/${route.kind}`;
+    case 'history':
+      return '#/history';
+    case 'settings':
+      return '#/settings';
   }
 }
 

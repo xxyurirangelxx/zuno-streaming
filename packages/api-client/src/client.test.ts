@@ -654,3 +654,130 @@ describe('createZunoClient uploads', () => {
     });
   });
 });
+
+describe('createZunoClient preferências, privacidade e histórico', () => {
+  it('carrega e atualiza preferências', async () => {
+    const preferences = { theme: 'dark', language: 'pt-BR' };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(preferences))
+      .mockResolvedValueOnce(jsonResponse({ ...preferences, theme: 'system' }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.getPreferences()).resolves.toEqual(preferences);
+    await expect(client.updatePreferences({ theme: 'system' })).resolves.toEqual({
+      ...preferences,
+      theme: 'system',
+    });
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/me/preferences',
+      expect.objectContaining({ method: 'GET', credentials: 'include' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/me/preferences',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ theme: 'system' }),
+      }),
+    );
+  });
+
+  it('lança ZunoApiError para preferências inválidas', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ theme: 'neon', language: 'pt-BR' }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.getPreferences()).rejects.toMatchObject({
+      name: 'ZunoApiError',
+      code: 'invalid_response',
+      status: 200,
+    });
+  });
+
+  it('carrega e atualiza privacidade', async () => {
+    const privacy = { allow_cloud_history: false, history_retention_days: null };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(privacy))
+      .mockResolvedValueOnce(jsonResponse({ ...privacy, history_retention_days: 30 }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.getPrivacy()).resolves.toEqual(privacy);
+    await expect(client.updatePrivacy({ history_retention_days: 30 })).resolves.toEqual({
+      ...privacy,
+      history_retention_days: 30,
+    });
+
+    expect(fetchImpl).toHaveBeenLastCalledWith(
+      '/api/v1/me/privacy',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ history_retention_days: 30 }),
+      }),
+    );
+  });
+
+  it('registra, lista com paginação e limpa o histórico', async () => {
+    const history = {
+      items: [
+        {
+          id: 'h1',
+          track: {
+            id: 't1',
+            title: 'Faixa',
+            duration_ms: 1000,
+            track_no: 1,
+            disc_no: 1,
+            album: null,
+            artists: [],
+            artwork_id: null,
+            available: true,
+          },
+          event_kind: 'play',
+          seconds: null,
+          occurred_at: '2026-10-26T10:00:00Z',
+        },
+      ],
+      next_cursor: 'c2',
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(jsonResponse(history))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(
+      client.recordHistoryEvent({ track_id: 't1', event_kind: 'play' }),
+    ).resolves.toBeUndefined();
+    await expect(client.listHistory({ limit: 30, cursor: 'abc' })).resolves.toEqual(history);
+    await expect(client.clearHistory()).resolves.toBeUndefined();
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/me/history',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ track_id: 't1', event_kind: 'play' }),
+      }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/me/history?limit=30&cursor=abc',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/me/history',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+});

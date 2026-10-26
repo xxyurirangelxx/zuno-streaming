@@ -4,10 +4,12 @@ pub mod artwork;
 pub mod auth;
 pub mod favorites;
 pub mod health;
+pub mod history;
 pub mod invitations;
 pub mod library;
 pub mod pagination;
 pub mod playlists;
+pub mod preferences;
 pub mod setup;
 pub mod stream;
 pub mod uploads;
@@ -117,6 +119,20 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/v1/favorites/{kind}/{id}",
             put(favorites::add).delete(favorites::remove),
+        )
+        .route(
+            "/api/v1/me/preferences",
+            get(preferences::get_preferences).put(preferences::update_preferences),
+        )
+        .route(
+            "/api/v1/me/privacy",
+            get(preferences::get_privacy).put(preferences::update_privacy),
+        )
+        .route(
+            "/api/v1/me/history",
+            get(history::list)
+                .post(history::create)
+                .delete(history::clear),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

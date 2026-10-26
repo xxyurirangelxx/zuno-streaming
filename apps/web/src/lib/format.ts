@@ -1,4 +1,8 @@
-import type { DatabaseHealthStatus, ServiceHealthStatus } from '@zuno/shared-types';
+import type {
+  DatabaseHealthStatus,
+  HistoryEventKind,
+  ServiceHealthStatus,
+} from '@zuno/shared-types';
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
@@ -91,6 +95,25 @@ export function formatClock(totalSeconds: number): string {
   }
 
   return `${minutes}:${String(remaining).padStart(2, '0')}`;
+}
+
+/** Rótulo PT-BR do tipo de evento do histórico. */
+export function formatHistoryEvent(kind: HistoryEventKind): string {
+  return { play: 'Reprodução', skip: 'Pulo', complete: 'Concluída' }[kind];
+}
+
+/** Data e hora locais em PT-BR; retorna "—" para valores inválidos. */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 /** Rótulo PT-BR do papel do usuário. */
