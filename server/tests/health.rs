@@ -9,6 +9,7 @@ use zuno_server::{AppState, Config, Database, build_router};
 struct TestContext {
     _dir: TempDir,
     db: Database,
+    config: Config,
 }
 
 async fn test_context() -> TestContext {
@@ -29,11 +30,19 @@ async fn test_context() -> TestContext {
         .await
         .expect("banco de teste deve conectar");
 
-    TestContext { _dir: dir, db }
+    TestContext {
+        _dir: dir,
+        db,
+        config,
+    }
 }
 
-fn app_for(db: &Database) -> axum::Router {
-    build_router(AppState::new(db.pool().clone(), env!("CARGO_PKG_VERSION")))
+fn app_for(db: &Database, config: &Config) -> axum::Router {
+    build_router(AppState::new(
+        db.pool().clone(),
+        config.clone(),
+        env!("CARGO_PKG_VERSION"),
+    ))
 }
 
 async fn body_json(response: axum::response::Response) -> Value {
@@ -49,7 +58,7 @@ async fn body_json(response: axum::response::Response) -> Value {
 #[tokio::test]
 async fn health_returns_ok_contract() {
     let context = test_context().await;
-    let response = app_for(&context.db)
+    let response = app_for(&context.db, &context.config)
         .oneshot(
             Request::builder()
                 .uri("/health")
@@ -75,7 +84,7 @@ async fn health_returns_ok_contract() {
 #[tokio::test]
 async fn unknown_route_returns_json_not_found() {
     let context = test_context().await;
-    let response = app_for(&context.db)
+    let response = app_for(&context.db, &context.config)
         .oneshot(
             Request::builder()
                 .uri("/rota-inexistente")
@@ -95,7 +104,7 @@ async fn unknown_route_returns_json_not_found() {
 #[tokio::test]
 async fn health_returns_degraded_when_database_is_closed() {
     let context = test_context().await;
-    let app = app_for(&context.db);
+    let app = app_for(&context.db, &context.config);
 
     context.db.pool().close().await;
 

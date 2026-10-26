@@ -11,7 +11,10 @@ use std::collections::HashMap;
 use anyhow::{Context, Result, bail};
 use sqlx::{QueryBuilder, SqliteConnection, SqlitePool};
 
+use crate::domain::dto::StreamTarget;
 use crate::domain::{AudioFileDraft, ScanIssue, ScanReport, TrackDraft, normalize_key};
+
+pub mod library;
 
 /// Expressão SQLite de "agora" no formato ISO-8601 UTC (mesmo padrão das migrations).
 const NOW_SQL: &str = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
@@ -715,4 +718,67 @@ mod tests {
         assert_eq!(build_match_expression(""), None);
         assert_eq!(build_match_expression("  -- \"\"  "), None);
     }
+}
+
+/// Capa persistida (referência ao arquivo no cache).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtworkRecord {
+    pub id: String,
+    pub relative_path: String,
+    pub mime_type: Option<String>,
+    pub checksum: String,
+}
+
+/// Busca a capa por id.
+pub async fn get_artwork(pool: &SqlitePool, artwork_id: &str) -> Result<Option<ArtworkRecord>> {
+    use sqlx::Row;
+
+    let row =
+        sqlx::query("SELECT id, relative_path, mime_type, checksum FROM artworks WHERE id = ?1")
+            .bind(artwork_id)
+            .fetch_optional(pool)
+            .await
+            .context("falha ao consultar capa")?;
+
+    row.map(|row| {
+        Ok(ArtworkRecord {
+            id: row.try_get("id")?,
+            relative_path: row.try_get("relative_path")?,
+            mime_type: row.try_get("mime_type")?,
+            checksum: row.try_get("checksum")?,
+        })
+    })
+    .transpose()
+}
+
+/// Resolve a faixa e o arquivo que devem ser servidos pelo endpoint de streaming.
+///
+/// Prioriza arquivos disponíveis e, entre eles, o último indexado.
+pub async fn get_stream_target(pool: &SqlitePool, track_id: &str) -> Result<Option<StreamTarget>> {
+    use sqlx::Row;
+
+    let row = sqlx::query(
+        "SELECT t.id AS track_id, t.title, af.relative_path, af.sha256, af.size_bytes, af.available
+         FROM tracks t
+         JOIN audio_files af ON af.track_id = t.id
+         WHERE t.id = ?1
+         ORDER BY af.available DESC, af.scanned_at DESC
+         LIMIT 1",
+    )
+    .bind(track_id)
+    .fetch_optional(pool)
+    .await
+    .context("falha ao resolver o alvo de streaming")?;
+
+    row.map(|row| {
+        Ok(StreamTarget {
+            track_id: row.try_get("track_id")?,
+            title: row.try_get("title")?,
+            relative_path: row.try_get("relative_path")?,
+            sha256: row.try_get("sha256")?,
+            size_bytes: u64::try_from(row.try_get::<i64, _>("size_bytes")?)?,
+            available: row.try_get::<i64, _>("available")? == 1,
+        })
+    })
+    .transpose()
 }

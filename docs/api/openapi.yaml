@@ -2,137 +2,367 @@ openapi: 3.1.0
 
 info:
   title: Zuno API
-  version: 0.1.0
+  version: 0.2.0
   summary: Contrato HTTP do servidor Zuno.
   description: |
-    Contrato mínimo do marco M0. Apenas o healthcheck está implementado.
+    Contrato do M1b: healthcheck, biblioteca (faixas, álbuns, artistas, busca),
+    capas e streaming com `Range`.
 
-    Endpoints de biblioteca, autenticação, streaming e sincronização são
-    planejados para M1+ e não fazem parte deste documento até serem
-    implementados e testados.
+    Autenticação **não** existe nesta versão (ADR-0008): o servidor escuta apenas
+    em loopback e não deve ser exposto à rede antes do M2.
 
-    Erros da API seguem o formato `{ "code": "snake_case", "message": "texto" }`.
+    Erros seguem `{ "code": "snake_case", "message": "texto" }`.
   license:
-    name: Licença pendente (sem arquivo LICENSE)
+    name: Apache-2.0
 
 servers:
   - url: http://127.0.0.1:8080
-    description: Desenvolvimento local (bind padrão, não exposto publicamente).
+    description: Desenvolvimento local (bind padrão).
 
 tags:
   - name: system
-    description: Saúde e informações operacionais do servidor.
+  - name: library
+  - name: media
 
 paths:
   /health:
     get:
-      tags:
-        - system
+      tags: [system]
       operationId: getHealth
-      summary: Verifica a saúde do servidor e do banco.
-      description: |
-        Responde `200` quando o banco responde a uma consulta trivial e
-        `503` quando o banco está indisponível. Nos dois casos o corpo segue
-        o schema `HealthResponse`.
-
-        Este endpoint é público e não exige autenticação por não expor dados
-        sensíveis. O servidor escuta em `127.0.0.1` por padrão.
+      summary: Saúde do servidor e do banco.
       responses:
         '200':
           description: Serviço e banco operacionais.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: ok
-                service: zuno-server
-                version: 0.1.0
-                uptime_seconds: 12
-                database:
-                  status: ok
+              schema: { $ref: '#/components/schemas/HealthResponse' }
         '503':
-          description: Banco de dados indisponível; serviço degradado.
+          description: Banco indisponível; serviço degradado.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: degraded
-                service: zuno-server
-                version: 0.1.0
-                uptime_seconds: 42
-                database:
-                  status: error
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+
+  /api/v1/tracks:
+    get:
+      tags: [library]
+      operationId: listTracks
+      summary: Lista faixas com filtros e paginação por cursor.
+      parameters:
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 200, default: 50 },
+          }
+        - {
+            name: cursor,
+            in: query,
+            schema: { type: string },
+            description: Cursor opaco de `next_cursor`.,
+          }
+        - { name: album_id, in: query, schema: { type: string, format: uuid } }
+        - { name: artist_id, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string }, description: Busca textual opcional. }
+      responses:
+        '200':
+          description: Página de faixas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrackListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/tracks/{id}:
+    get:
+      tags: [library]
+      operationId: getTrack
+      summary: Detalhe da faixa, incluindo o arquivo de áudio.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Detalhe da faixa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrackDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/tracks/{id}/stream:
+    get:
+      tags: [media]
+      operationId: streamTrack
+      summary: Baixa/reproduz o arquivo Opus, com suporte a `Range`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Range, in: header, schema: { type: string }, example: bytes=0-65535 }
+        - {
+            name: If-Range,
+            in: header,
+            schema: { type: string },
+            description: ETag (sha256) para validar o Range.,
+          }
+      responses:
+        '200':
+          description: Representação completa.
+          headers:
+            Accept-Ranges: { schema: { type: string, enum: [bytes] } }
+            ETag: { schema: { type: string } }
+          content:
+            audio/ogg:
+              schema: { type: string, format: binary }
+        '206':
+          description: Parte do arquivo.
+          headers:
+            Content-Range: { schema: { type: string } }
+            ETag: { schema: { type: string } }
+          content:
+            audio/ogg:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '416':
+          description: 'Intervalo fora do arquivo; resposta traz `Content-Range: bytes */tamanho`.'
+          headers:
+            Content-Range: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorBody' }
+    head:
+      tags: [media]
+      operationId: headTrackStream
+      summary: Cabeçalhos do streaming, sem corpo.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cabeçalhos completos. }
+        '206': { description: Cabeçalhos parciais (com Range). }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/albums:
+    get:
+      tags: [library]
+      operationId: listAlbums
+      summary: Lista álbuns.
+      parameters:
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 200, default: 50 },
+          }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Página de álbuns.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlbumListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/artists:
+    get:
+      tags: [library]
+      operationId: listArtists
+      summary: Lista artistas.
+      parameters:
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 200, default: 50 },
+          }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Página de artistas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ArtistListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/search:
+    get:
+      tags: [library]
+      operationId: searchLibrary
+      summary: Busca faixas (FTS5), álbuns e artistas.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 200, default: 50 },
+          }
+      responses:
+        '200':
+          description: Resultados agregados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/artworks/{id}:
+    get:
+      tags: [media]
+      operationId: getArtwork
+      summary: Capa original ou variante redimensionada em cache.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: size
+          in: query
+          schema: { type: string, default: full }
+          description: '`full` (padrão), `thumb` (320), `card` (640) ou um número de 16 a 2048.'
+      responses:
+        '200':
+          description: Imagem.
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
 components:
+  responses:
+    BadRequest:
+      description: Parâmetro inválido.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorBody' }
+    NotFound:
+      description: Recurso inexistente.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorBody' }
+
   schemas:
     HealthResponse:
       type: object
-      description: Estado do serviço e do banco de dados.
-      required:
-        - status
-        - service
-        - version
-        - uptime_seconds
-        - database
       additionalProperties: false
+      required: [status, service, version, uptime_seconds, database]
       properties:
-        status:
-          type: string
-          description: Estado geral. `ok` em 200, `degraded` em 503.
-          enum:
-            - ok
-            - degraded
-        service:
-          type: string
-          description: Nome canônico do serviço.
-          const: zuno-server
-        version:
-          type: string
-          description: Versão do servidor.
-          examples:
-            - 0.1.0
-        uptime_seconds:
-          type: integer
-          format: int64
-          minimum: 0
-          description: Segundos desde o início do processo.
-        database:
-          $ref: '#/components/schemas/DatabaseHealth'
+        status: { type: string, enum: [ok, degraded] }
+        service: { type: string, const: zuno-server }
+        version: { type: string }
+        uptime_seconds: { type: integer, format: int64, minimum: 0 }
+        database: { $ref: '#/components/schemas/DatabaseHealth' }
 
     DatabaseHealth:
       type: object
-      description: Estado do subsistema de banco de dados.
-      required:
-        - status
       additionalProperties: false
+      required: [status]
       properties:
-        status:
-          type: string
-          description: '`ok` quando a consulta trivial responde; `error` caso contrário.'
-          enum:
-            - ok
-            - error
+        status: { type: string, enum: [ok, error] }
 
     ApiErrorBody:
       type: object
-      description: |
-        Corpo padrão de erro da API. Usado por respostas de erro que não são
-        o healthcheck (por exemplo, `404` para rota inexistente e `500` para
-        falhas internas).
-      required:
-        - code
-        - message
       additionalProperties: false
+      required: [code, message]
       properties:
-        code:
-          type: string
-          description: 'Código estável em `snake_case` (ex.: `not_found`, `internal_error`).'
-          examples:
-            - not_found
-        message:
-          type: string
-          description: Mensagem legível para humanos, em PT-BR.
-          examples:
-            - recurso não encontrado
+        code: { type: string }
+        message: { type: string }
+
+    ArtistRef:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    AlbumRef:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+
+    TrackSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, duration_ms, track_no, disc_no, album, artists, artwork_id, available]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        duration_ms: { type: [integer, 'null'], format: int64 }
+        track_no: { type: [integer, 'null'] }
+        disc_no: { type: [integer, 'null'] }
+        album: { oneOf: [{ $ref: '#/components/schemas/AlbumRef' }, { type: 'null' }] }
+        artists: { type: array, items: { $ref: '#/components/schemas/ArtistRef' } }
+        artwork_id: { type: [string, 'null'], format: uuid }
+        available:
+          { type: boolean, description: 'false quando nenhum arquivo disponível está indexado.' }
+
+    AudioFileInfo:
+      type: object
+      additionalProperties: false
+      required: [id, codec, container, bitrate, sample_rate, channels, size_bytes, available]
+      properties:
+        id: { type: string, format: uuid }
+        codec: { type: string, examples: [opus] }
+        container: { type: string, examples: [ogg] }
+        bitrate: { type: [integer, 'null'] }
+        sample_rate: { type: [integer, 'null'] }
+        channels: { type: [integer, 'null'] }
+        size_bytes: { type: integer, format: int64 }
+        available: { type: boolean }
+
+    TrackDetail:
+      allOf:
+        - $ref: '#/components/schemas/TrackSummary'
+        - type: object
+          additionalProperties: false
+          required: [audio]
+          properties:
+            audio: { oneOf: [{ $ref: '#/components/schemas/AudioFileInfo' }, { type: 'null' }] }
+
+    AlbumSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, artist, release_year, artwork_id, track_count]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        artist: { oneOf: [{ $ref: '#/components/schemas/ArtistRef' }, { type: 'null' }] }
+        release_year: { type: [integer, 'null'] }
+        artwork_id: { type: [string, 'null'], format: uuid }
+        track_count: { type: integer, format: int64 }
+
+    ArtistSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, track_count, album_count]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        track_count: { type: integer, format: int64 }
+        album_count: { type: integer, format: int64 }
+
+    TrackListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TrackSummary' } }
+        next_cursor: { type: [string, 'null'] }
+
+    AlbumListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AlbumSummary' } }
+        next_cursor: { type: [string, 'null'] }
+
+    ArtistListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ArtistSummary' } }
+        next_cursor: { type: [string, 'null'] }
+
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [query, tracks, albums, artists]
+      properties:
+        query: { type: string }
+        tracks: { type: array, items: { $ref: '#/components/schemas/TrackSummary' } }
+        albums: { type: array, items: { $ref: '#/components/schemas/AlbumSummary' } }
+        artists: { type: array, items: { $ref: '#/components/schemas/ArtistSummary' } }
