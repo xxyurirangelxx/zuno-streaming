@@ -10,6 +10,9 @@ import type {
   FavoriteKind,
   FavoritesResponse,
   HealthResponse,
+  HistoryEventRequest,
+  HistoryListParams,
+  HistoryResponse,
   InvitationItem,
   ListPageParams,
   ListTracksParams,
@@ -26,11 +29,15 @@ import type {
   TrackDetail,
   TrackListResponse,
   UpdatePlaylistRequest,
+  UpdatePreferencesRequest,
+  UpdatePrivacyRequest,
   UploadCompleteResponse,
   UploadCreated,
   UploadDetail,
   UploadProgress,
   User,
+  UserPreferences,
+  UserPrivacy,
 } from '@zuno/shared-types';
 
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -117,6 +124,18 @@ export interface ZunoClient {
   ): Promise<void>;
   addFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void>;
   removeFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void>;
+
+  // Preferências, privacidade e histórico
+  getPreferences(signal?: AbortSignal): Promise<UserPreferences>;
+  updatePreferences(
+    payload: UpdatePreferencesRequest,
+    signal?: AbortSignal,
+  ): Promise<UserPreferences>;
+  getPrivacy(signal?: AbortSignal): Promise<UserPrivacy>;
+  updatePrivacy(payload: UpdatePrivacyRequest, signal?: AbortSignal): Promise<UserPrivacy>;
+  recordHistoryEvent(payload: HistoryEventRequest, signal?: AbortSignal): Promise<void>;
+  listHistory(params?: HistoryListParams, signal?: AbortSignal): Promise<HistoryResponse>;
+  clearHistory(signal?: AbortSignal): Promise<void>;
 
   // Uploads
   createUpload(file: File, options?: UploadRequestOptions): Promise<UploadCreated>;
@@ -290,6 +309,50 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 
   const query = search.toString();
   return query ? `?${query}` : '';
+}
+
+function isThemePreference(value: unknown): value is UserPreferences['theme'] {
+  return value === 'light' || value === 'dark' || value === 'system';
+}
+
+function parsePreferences(body: unknown, response: Response): UserPreferences {
+  requireOk(body, response);
+
+  if (!isRecord(body) || !isThemePreference(body.theme) || typeof body.language !== 'string') {
+    throw invalidResponse(response.status);
+  }
+
+  return { theme: body.theme, language: body.language };
+}
+
+function parsePrivacy(body: unknown, response: Response): UserPrivacy {
+  requireOk(body, response);
+
+  if (
+    !isRecord(body) ||
+    typeof body.allow_cloud_history !== 'boolean' ||
+    (body.history_retention_days !== null && typeof body.history_retention_days !== 'number')
+  ) {
+    throw invalidResponse(response.status);
+  }
+
+  return {
+    allow_cloud_history: body.allow_cloud_history,
+    history_retention_days: body.history_retention_days,
+  };
+}
+
+function parseHistory(body: unknown, response: Response): HistoryResponse {
+  requireOk(body, response);
+
+  if (!isRecord(body) || !Array.isArray(body.items)) {
+    throw invalidResponse(response.status);
+  }
+
+  return {
+    items: body.items as HistoryResponse['items'],
+    next_cursor: typeof body.next_cursor === 'string' ? body.next_cursor : null,
+  };
 }
 
 export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
@@ -855,6 +918,60 @@ export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
         () => undefined,
         { method: 'DELETE', signal },
       );
+    },
+
+    async getPreferences(signal?: AbortSignal): Promise<UserPreferences> {
+      return request(`${API_PREFIX}/me/preferences`, parsePreferences, { signal });
+    },
+
+    async updatePreferences(
+      payload: UpdatePreferencesRequest,
+      signal?: AbortSignal,
+    ): Promise<UserPreferences> {
+      return request(`${API_PREFIX}/me/preferences`, parsePreferences, {
+        method: 'PUT',
+        body: payload,
+        signal,
+      });
+    },
+
+    async getPrivacy(signal?: AbortSignal): Promise<UserPrivacy> {
+      return request(`${API_PREFIX}/me/privacy`, parsePrivacy, { signal });
+    },
+
+    async updatePrivacy(payload: UpdatePrivacyRequest, signal?: AbortSignal): Promise<UserPrivacy> {
+      return request(`${API_PREFIX}/me/privacy`, parsePrivacy, {
+        method: 'PUT',
+        body: payload,
+        signal,
+      });
+    },
+
+    async recordHistoryEvent(payload: HistoryEventRequest, signal?: AbortSignal): Promise<void> {
+      return request<void>(
+        `${API_PREFIX}/me/history`,
+        (body, response) => {
+          requireOk(body, response);
+          return undefined;
+        },
+        { method: 'POST', body: payload, signal },
+      );
+    },
+
+    async listHistory(
+      params: HistoryListParams = {},
+      signal?: AbortSignal,
+    ): Promise<HistoryResponse> {
+      const query = buildQuery({ limit: params.limit, cursor: params.cursor });
+
+      return request(`${API_PREFIX}/me/history${query}`, parseHistory, { signal });
+    },
+
+    async clearHistory(signal?: AbortSignal): Promise<void> {
+      return request<void>(`${API_PREFIX}/me/history`, () => undefined, {
+        method: 'DELETE',
+        signal,
+      });
     },
 
     createUpload,

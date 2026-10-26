@@ -6,11 +6,13 @@ import { routeHref, useRoute } from '../lib/router';
 import { PlayerBar } from '../player/PlayerBar';
 import {
   HeartIcon,
+  HistoryIcon,
   HomeIcon,
   LibraryIcon,
   LogoutIcon,
   PlaylistIcon,
   SearchIcon,
+  SettingsIcon,
   UploadIcon,
 } from './Icons';
 
@@ -26,6 +28,11 @@ const NAV_ITEMS: NavItem[] = [
   { route: { name: 'favorites', kind: 'tracks' }, label: 'Favoritos' },
   { route: { name: 'search' }, label: 'Buscar' },
   { route: { name: 'upload' }, label: 'Enviar' },
+];
+
+const SECONDARY_NAV_ITEMS: NavItem[] = [
+  { route: { name: 'history' }, label: 'Histórico' },
+  { route: { name: 'settings' }, label: 'Configurações' },
 ];
 
 function isActive(current: Route, item: Route): boolean {
@@ -55,6 +62,14 @@ function NavIcon({ route }: { route: Route }) {
 
   if (route.name === 'favorites') {
     return <HeartIcon className="h-5 w-5" />;
+  }
+
+  if (route.name === 'history') {
+    return <HistoryIcon className="h-5 w-5" />;
+  }
+
+  if (route.name === 'settings') {
+    return <SettingsIcon className="h-5 w-5" />;
   }
 
   return <LibraryIcon className="h-5 w-5" />;
@@ -105,6 +120,31 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
 
+        <nav aria-label="Navegação secundária" className="mt-4 border-t border-line/50 pt-3">
+          <ul className="space-y-1">
+            {SECONDARY_NAV_ITEMS.map((item) => {
+              const active = isActive(route, item.route);
+
+              return (
+                <li key={item.label}>
+                  <a
+                    href={routeHref(item.route)}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-accent-blue/15 text-accent-blue'
+                        : 'text-copy-muted hover:bg-surface-muted hover:text-copy'
+                    }`}
+                  >
+                    <NavIcon route={item.route} />
+                    {item.label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
         <div className="mt-4 rounded-xl border border-line/60 bg-surface/60 p-3">
           <p className="truncate text-sm font-semibold text-copy">{user?.username ?? '—'}</p>
           <p className="text-xs text-copy-muted">{user ? formatRole(user.role) : ''}</p>
@@ -127,10 +167,27 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-lg font-semibold tracking-tight text-copy">Zuno</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="text-right">
+          <div className="hidden text-right sm:block">
             <p className="max-w-28 truncate text-xs font-semibold text-copy">{user?.username}</p>
             <p className="text-[0.65rem] text-copy-muted">{user ? formatRole(user.role) : ''}</p>
           </div>
+          {SECONDARY_NAV_ITEMS.map((item) => {
+            const active = isActive(route, item.route);
+
+            return (
+              <a
+                key={item.label}
+                href={routeHref(item.route)}
+                aria-label={item.label}
+                aria-current={active ? 'page' : undefined}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border border-line ${
+                  active ? 'text-accent-blue' : 'text-copy-muted hover:text-copy'
+                }`}
+              >
+                <NavIcon route={item.route} />
+              </a>
+            );
+          })}
           <button
             type="button"
             onClick={() => {

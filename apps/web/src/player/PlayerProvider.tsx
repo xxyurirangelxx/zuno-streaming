@@ -1,5 +1,5 @@
 import type { ZunoClient } from '@zuno/api-client';
-import type { TrackSummary } from '@zuno/shared-types';
+import type { HistoryEventRequest, TrackSummary } from '@zuno/shared-types';
 import {
   createContext,
   useCallback,
@@ -10,6 +10,7 @@ import {
   useRef,
 } from 'react';
 import type { Dispatch, ReactNode } from 'react';
+import { useSessionOptional } from '../app/AuthProvider';
 import { clampSeek, initialPlayerState, playerReducer } from './reducer';
 import type { PlayerAction, PlayerState } from './reducer';
 import { useMediaSession } from './useMediaSession';
@@ -41,11 +42,79 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function PlayerProvider({ client, children }: { client: ZunoClient; children: ReactNode }) {
+  const session = useSessionOptional();
+  const sessionAuthenticated = session?.state.kind === 'authenticated';
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const appliedTokenRef = useRef(0);
+  const playedTokenRef = useRef<number | null>(null);
+  const currentTrackRef = useRef<TrackSummary | null>(null);
+  const durationRef = useRef<number | null>(null);
   const currentTrack =
     state.currentIndex === null ? null : (state.queue[state.currentIndex] ?? null);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    durationRef.current = state.durationMs;
+  }, [state.durationMs]);
+
+  /** Falhas de histórico são silenciosas: nunca interrompem a reprodução. */
+  const sendHistoryEvent = useCallback(
+    (payload: HistoryEventRequest) => {
+      if (!sessionAuthenticated) {
+        return;
+      }
+
+      const record = client.recordHistoryEvent;
+
+      if (typeof record !== 'function') {
+        return;
+      }
+
+      try {
+        void record.call(client, payload).catch(() => undefined);
+      } catch {
+        // Cliente sem suporte ao endpoint: ignora o evento.
+      }
+    },
+    [client, sessionAuthenticated],
+  );
+
+  // Um play por início de faixa/vez; pausas e retomadas não geram novo evento.
+  useEffect(() => {
+    if (!currentTrack || !state.isPlaying) {
+      return;
+    }
+
+    if (playedTokenRef.current === state.playbackToken) {
+      return;
+    }
+
+    playedTokenRef.current = state.playbackToken;
+    sendHistoryEvent({ track_id: currentTrack.id, event_kind: 'play' });
+  }, [currentTrack, sendHistoryEvent, state.isPlaying, state.playbackToken]);
+
+  const onEndedRef = useRef<() => void>(() => undefined);
+
+  useEffect(() => {
+    onEndedRef.current = () => {
+      const track = currentTrackRef.current;
+
+      if (!track) {
+        return;
+      }
+
+      const duration = durationRef.current;
+      sendHistoryEvent({
+        track_id: track.id,
+        event_kind: 'complete',
+        ...(duration !== null ? { seconds: Math.round(duration / 1000) } : {}),
+      });
+    };
+  }, [sendHistoryEvent]);
 
   const seekTo = useCallback(
     (positionMs: number) => {
@@ -145,6 +214,7 @@ export function PlayerProvider({ client, children }: { client: ZunoClient; child
       });
     };
     const onEnded = () => {
+      onEndedRef.current();
       dispatch({ type: 'ended' });
     };
     const onError = () => {
