@@ -1,21 +1,28 @@
 import type { TrackSummary } from '@zuno/shared-types';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { formatDurationMs } from '../lib/format';
 import { usePlayer } from '../player/PlayerProvider';
+import { AddToPlaylistDialog } from './AddToPlaylistDialog';
 import { Artwork } from './Artwork';
-import { PauseIcon, PlayIcon } from './Icons';
+import { FavoriteButton } from './FavoriteButton';
+import { PauseIcon, PlayIcon, PlaylistIcon } from './Icons';
 
 interface TrackListProps {
   tracks: TrackSummary[];
   emptyMessage?: string;
   showAlbum?: boolean;
+  actions?: (track: TrackSummary, index: number) => ReactNode;
 }
 
 export function TrackList({
   tracks,
   emptyMessage = 'Nenhuma faixa encontrada.',
   showAlbum = true,
+  actions,
 }: TrackListProps) {
   const { state, dispatch } = usePlayer();
+  const [playlistTrack, setPlaylistTrack] = useState<TrackSummary | null>(null);
 
   if (tracks.length === 0) {
     return <p className="px-1 py-6 text-sm text-copy-muted">{emptyMessage}</p>;
@@ -81,9 +88,29 @@ export function TrackList({
             <span className="w-12 shrink-0 text-right font-mono text-xs text-copy-muted">
               {formatDurationMs(track.duration_ms)}
             </span>
+
+            {actions?.(track, index)}
+
+            <FavoriteButton kind="track" entity={track} label={track.title} />
+
+            <button
+              type="button"
+              onClick={() => {
+                setPlaylistTrack(track);
+              }}
+              aria-label={`Adicionar ${track.title} à playlist`}
+              title="Adicionar à playlist"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-copy-muted transition-colors hover:bg-surface-muted hover:text-copy"
+            >
+              <PlaylistIcon className="h-4 w-4" />
+            </button>
           </li>
         );
       })}
+
+      {playlistTrack && (
+        <AddToPlaylistDialog track={playlistTrack} onClose={() => setPlaylistTrack(null)} />
+      )}
     </ol>
   );
 }

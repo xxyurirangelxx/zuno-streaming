@@ -190,6 +190,57 @@ export function TrashIcon({ className }: IconProps) {
   );
 }
 
+export function PlaylistIcon({ className }: IconProps) {
+  return iconBase(
+    className,
+    <>
+      <path d="M4 6h12" />
+      <path d="M4 12h12" />
+      <path d="M4 18h8" />
+      <path d="M18 11v8" />
+      <path d="M15.5 16.5h5" />
+    </>,
+  );
+}
+
+export function HeartIcon({ className, filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? 'h-5 w-5'}
+    >
+      <path d="M12 20.5S3.5 15 3.5 9.2A4.7 4.7 0 0 1 12 6a4.7 4.7 0 0 1 8.5 3.2c0 5.8-8.5 11.3-8.5 11.3Z" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ className }: IconProps) {
+  return iconBase(
+    className,
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </>,
+  );
+}
+
+export function EditIcon({ className }: IconProps) {
+  return iconBase(
+    className,
+    <>
+      <path d="M4 20h4l11-11-4-4L4 16Z" />
+      <path d="m13.5 5.5 4 4" />
+    </>,
+  );
+}
+
 export function LogoutIcon({ className }: IconProps) {
   return iconBase(
     className,

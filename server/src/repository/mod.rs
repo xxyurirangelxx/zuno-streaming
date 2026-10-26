@@ -16,6 +16,7 @@ use crate::domain::{AudioFileDraft, ScanIssue, ScanReport, TrackDraft, normalize
 
 pub mod auth;
 pub mod library;
+pub mod playlists;
 pub mod uploads;
 
 /// Expressão SQLite de "agora" no formato ISO-8601 UTC (mesmo padrão das migrations).

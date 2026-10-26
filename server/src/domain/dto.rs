@@ -105,6 +105,40 @@ pub struct TrackDetail {
     pub audio: Option<AudioFileInfo>,
 }
 
+/// Playlist como aparece na listagem do dono.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaylistSummary {
+    pub id: String,
+    pub name: String,
+    pub visibility: String,
+    pub track_count: i64,
+    pub updated_at: String,
+}
+
+/// Playlist com as faixas na ordem definida pelo dono.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaylistDetail {
+    pub id: String,
+    pub name: String,
+    pub visibility: String,
+    pub track_count: i64,
+    pub items: Vec<TrackSummary>,
+}
+
+/// Posição devolvida ao adicionar uma faixa à playlist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaylistItemAdded {
+    pub position: i64,
+}
+
+/// Favoritos agrupados por tipo de entidade.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FavoritesResponse {
+    pub tracks: Vec<TrackSummary>,
+    pub albums: Vec<AlbumSummary>,
+    pub artists: Vec<ArtistSummary>,
+}
+
 /// Faixa + dados necessários para resolver o streaming (uso interno).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamTarget {

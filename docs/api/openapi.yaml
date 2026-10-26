@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Zuno API
-  version: 0.3.0
+  version: 0.4.0
   summary: Contrato HTTP do servidor Zuno.
   description: |
     Contrato do M1b: healthcheck, biblioteca (faixas, álbuns, artistas, busca),
@@ -28,6 +28,9 @@ tags:
   - name: system
   - name: library
   - name: media
+  - name: auth
+  - name: playlists
+  - name: favorites
 
 paths:
   /health:
@@ -403,6 +406,203 @@ paths:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/v1/playlists:
+    get:
+      tags: [playlists]
+      operationId: listPlaylists
+      summary: Playlists do usuário autenticado.
+      responses:
+        '200':
+          description: Lista de playlists.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PlaylistSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [playlists]
+      operationId: createPlaylist
+      summary: Cria uma playlist privada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        '201':
+          description: Playlist criada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlaylistSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/playlists/{id}:
+    get:
+      tags: [playlists]
+      operationId: getPlaylist
+      summary: Playlist com faixas na ordem atual.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Playlist do usuário.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlaylistDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [playlists]
+      operationId: updatePlaylist
+      summary: Renomeia ou altera a visibilidade.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                visibility: { type: string, enum: [private, unlisted] }
+      responses:
+        '200':
+          description: Playlist atualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlaylistSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [playlists]
+      operationId: deletePlaylist
+      summary: Exclui a playlist (apenas do dono).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Playlist excluída. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/playlists/{id}/items:
+    post:
+      tags: [playlists]
+      operationId: addPlaylistItem
+      summary: Adiciona uma faixa ao fim da playlist.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [track_id]
+              properties:
+                track_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Faixa adicionada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [position]
+                properties:
+                  position: { type: integer, minimum: 0 }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/playlists/{id}/items/{track_id}:
+    delete:
+      tags: [playlists]
+      operationId: removePlaylistItem
+      summary: Remove a faixa e recompacta as posições.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: track_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Faixa removida. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/playlists/{id}/items/{track_id}/position:
+    put:
+      tags: [playlists]
+      operationId: movePlaylistItem
+      summary: Move a faixa para uma posição 0-based.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: track_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [position]
+              properties:
+                position: { type: integer, minimum: 0 }
+      responses:
+        '204': { description: Ordem atualizada. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/favorites:
+    get:
+      tags: [favorites]
+      operationId: listFavorites
+      summary: Favoritos do usuário, agrupados por tipo.
+      responses:
+        '200':
+          description: Favoritos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FavoritesResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/favorites/{kind}/{id}:
+    put:
+      tags: [favorites]
+      operationId: addFavorite
+      summary: Marca como favorito (idempotente).
+      parameters:
+        - {
+            name: kind,
+            in: path,
+            required: true,
+            schema: { type: string, enum: [track, album, artist] },
+          }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Favorito registrado. }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [favorites]
+      operationId: removeFavorite
+      summary: Remove dos favoritos (idempotente).
+      parameters:
+        - {
+            name: kind,
+            in: path,
+            required: true,
+            schema: { type: string, enum: [track, album, artist] },
+          }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Favorito removido. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
 components:
   responses:
     BadRequest:
@@ -443,6 +643,34 @@ components:
       name: zuno_session
 
   schemas:
+    PlaylistSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, visibility, track_count, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        visibility: { type: string, enum: [private, unlisted] }
+        track_count: { type: integer, format: int64 }
+        updated_at: { type: string }
+
+    PlaylistDetail:
+      allOf:
+        - $ref: '#/components/schemas/PlaylistSummary'
+        - type: object
+          additionalProperties: false
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/TrackSummary' } }
+
+    FavoritesResponse:
+      type: object
+      additionalProperties: false
+      required: [tracks, albums, artists]
+      properties:
+        tracks: { type: array, items: { $ref: '#/components/schemas/TrackSummary' } }
+        albums: { type: array, items: { $ref: '#/components/schemas/AlbumSummary' } }
+        artists: { type: array, items: { $ref: '#/components/schemas/ArtistSummary' } }
     User:
       type: object
       additionalProperties: false

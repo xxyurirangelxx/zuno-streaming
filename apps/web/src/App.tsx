@@ -4,10 +4,14 @@ import { useMemo } from 'react';
 import { AuthProvider, useSession } from './app/AuthProvider';
 import { AuthScreen } from './app/AuthScreen';
 import { AppShell } from './components/AppShell';
+import { FavoritesView } from './components/FavoritesView';
 import { HomeView } from './components/HomeView';
 import { LibraryView } from './components/LibraryView';
+import { PlaylistDetailView } from './components/PlaylistDetailView';
+import { PlaylistsView } from './components/PlaylistsView';
 import { SearchView } from './components/SearchView';
 import { ErrorState } from './components/States';
+import { FavoritesProvider } from './favorites/FavoritesProvider';
 import { describeApiError } from './lib/errors';
 import { useRoute } from './lib/router';
 import { PlayerProvider } from './player/PlayerProvider';
@@ -60,6 +64,12 @@ function Routes() {
       return <SearchView />;
     case 'library':
       return <LibraryView kind={route.kind} />;
+    case 'playlists':
+      return <PlaylistsView />;
+    case 'playlist':
+      return <PlaylistDetailView id={route.id} />;
+    case 'favorites':
+      return <FavoritesView kind={route.kind} />;
   }
 }
 
@@ -79,11 +89,13 @@ function SessionGate() {
   }
 
   return (
-    <PlayerProvider client={client}>
-      <AppShell>
-        <Routes />
-      </AppShell>
-    </PlayerProvider>
+    <FavoritesProvider client={client}>
+      <PlayerProvider client={client}>
+        <AppShell>
+          <Routes />
+        </AppShell>
+      </PlayerProvider>
+    </FavoritesProvider>
   );
 }
 
