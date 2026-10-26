@@ -6,6 +6,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'library'; kind: LibraryKind }
   | { name: 'search' }
+  | { name: 'upload' }
   | { name: 'playlists' }
   | { name: 'playlist'; id: string }
   | { name: 'favorites'; kind: LibraryKind };
@@ -21,6 +22,10 @@ export function parseRoute(hash: string): Route {
 
   if (path === 'search') {
     return { name: 'search' };
+  }
+
+  if (path === 'upload') {
+    return { name: 'upload' };
   }
 
   if (path === 'playlists') {
@@ -68,6 +73,8 @@ export function routeHref(route: Route): string {
       return '#/home';
     case 'search':
       return '#/search';
+    case 'upload':
+      return '#/upload';
     case 'library':
       return `#/library/${route.kind}`;
     case 'playlists':

@@ -464,3 +464,193 @@ describe('createZunoClient favoritos', () => {
     );
   });
 });
+
+class FakeXhr {
+  static instances: FakeXhr[] = [];
+
+  method = '';
+  url = '';
+  withCredentials = false;
+  sentBody: unknown = null;
+  aborted = false;
+  status = 0;
+  responseText = '';
+  headers: Record<string, string> = {};
+  upload = {
+    onprogress: null as ((event: ProgressEvent) => void) | null,
+  };
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  ontimeout: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+
+  constructor() {
+    FakeXhr.instances.push(this);
+  }
+
+  open(method: string, url: string): void {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(name: string, value: string): void {
+    this.headers[name] = value;
+  }
+
+  send(body: unknown): void {
+    this.sentBody = body;
+  }
+
+  abort(): void {
+    this.aborted = true;
+    this.onabort?.();
+  }
+
+  progress(loaded: number, total: number): void {
+    this.upload.onprogress?.({
+      lengthComputable: true,
+      loaded,
+      total,
+    } as ProgressEvent);
+  }
+
+  respond(status: number, body: unknown): void {
+    this.status = status;
+    this.responseText = body === null ? '' : JSON.stringify(body);
+    this.onload?.();
+  }
+}
+
+function createXhrClient() {
+  const xhrs: FakeXhr[] = [];
+  const client = createZunoClient({
+    xhrFactory: () => {
+      const xhr = new FakeXhr();
+      xhrs.push(xhr);
+      return xhr as unknown as XMLHttpRequest;
+    },
+  });
+
+  return { client, xhrs };
+}
+
+const createdUpload = {
+  upload_id: 'up1',
+  original_filename: 'faixa.opus',
+  size_bytes: 10,
+  sha256: 'abc',
+  status: 'staged' as const,
+};
+
+describe('createZunoClient uploads', () => {
+  it('envia o arquivo binário com nome, credenciais e progresso real', async () => {
+    const { client, xhrs } = createXhrClient();
+    const file = new File(['conteudo'], 'faixa.opus', { type: 'audio/ogg' });
+    const onProgress = vi.fn();
+
+    const promise = client.createUpload(file, { onProgress });
+    const xhr = xhrs[0];
+
+    expect(xhr).toBeDefined();
+    expect(xhr?.method).toBe('POST');
+    expect(xhr?.url).toBe('/api/v1/uploads');
+    expect(xhr?.withCredentials).toBe(true);
+    expect(xhr?.headers['X-Zuno-Filename']).toBe('faixa.opus');
+    expect(xhr?.headers['Content-Type']).toBe('application/octet-stream');
+    expect(xhr?.sentBody).toBe(file);
+
+    xhr?.progress(50, 100);
+    expect(onProgress).toHaveBeenCalledWith({ loaded: 50, total: 100, percent: 50 });
+
+    xhr?.respond(201, createdUpload);
+    await expect(promise).resolves.toEqual(createdUpload);
+  });
+
+  it('mapeia 413 com corpo JSON para ZunoApiError', async () => {
+    const { client, xhrs } = createXhrClient();
+    const promise = client.createUpload(new File(['x'], 'grande.opus'));
+
+    xhrs[0]?.respond(413, { code: 'too_large', message: 'Arquivo grande demais.' });
+
+    await expect(promise).rejects.toMatchObject({
+      name: 'ZunoApiError',
+      code: 'too_large',
+      status: 413,
+      body: { code: 'too_large', message: 'Arquivo grande demais.' },
+    });
+  });
+
+  it('aborta o XHR e resolve como canceled ao cancelar', async () => {
+    const { client, xhrs } = createXhrClient();
+    const controller = new AbortController();
+    const promise = client.createUpload(new File(['x'], 'a.opus'), {
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    expect(xhrs[0]?.aborted).toBe(true);
+    await expect(promise).rejects.toMatchObject({ code: 'canceled', status: null });
+  });
+
+  it('consulta, completa e remove uploads de staging', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...createdUpload,
+          status: 'staged',
+          track_id: null,
+          error: null,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ upload_id: 'up1', status: 'indexed', track_id: 't1' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.getUpload('up1')).resolves.toMatchObject({ status: 'staged' });
+    await expect(client.completeUpload('up1')).resolves.toEqual({
+      upload_id: 'up1',
+      status: 'indexed',
+      track_id: 't1',
+    });
+    await expect(client.deleteUpload('up1')).resolves.toBeUndefined();
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/uploads/up1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/uploads/up1/complete',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/uploads/up1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('preserva o corpo do 409 de duplicata', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse(
+        {
+          upload_id: 'up1',
+          status: 'duplicate',
+          track_id: 't1',
+        },
+        409,
+      ),
+    );
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.completeUpload('up1')).rejects.toMatchObject({
+      status: 409,
+      body: { upload_id: 'up1', status: 'duplicate', track_id: 't1' },
+    });
+  });
+});

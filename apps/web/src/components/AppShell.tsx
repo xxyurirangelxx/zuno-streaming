@@ -4,7 +4,15 @@ import { formatRole } from '../lib/format';
 import type { Route } from '../lib/router';
 import { routeHref, useRoute } from '../lib/router';
 import { PlayerBar } from '../player/PlayerBar';
-import { HeartIcon, HomeIcon, LibraryIcon, LogoutIcon, PlaylistIcon, SearchIcon } from './Icons';
+import {
+  HeartIcon,
+  HomeIcon,
+  LibraryIcon,
+  LogoutIcon,
+  PlaylistIcon,
+  SearchIcon,
+  UploadIcon,
+} from './Icons';
 
 interface NavItem {
   route: Route;
@@ -17,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { route: { name: 'playlists' }, label: 'Playlists' },
   { route: { name: 'favorites', kind: 'tracks' }, label: 'Favoritos' },
   { route: { name: 'search' }, label: 'Buscar' },
+  { route: { name: 'upload' }, label: 'Enviar' },
 ];
 
 function isActive(current: Route, item: Route): boolean {
@@ -34,6 +43,10 @@ function NavIcon({ route }: { route: Route }) {
 
   if (route.name === 'search') {
     return <SearchIcon className="h-5 w-5" />;
+  }
+
+  if (route.name === 'upload') {
+    return <UploadIcon className="h-5 w-5" />;
   }
 
   if (route.name === 'playlists' || route.name === 'playlist') {

@@ -16,10 +16,13 @@ const TABS: { kind: LibraryKind; label: string }[] = [
 ];
 
 function useLibraryPage(kind: LibraryKind) {
-  const { client } = useSession();
+  const { client, libraryRevision } = useSession();
 
   const loadPage = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
+      // Referenciado para invalidar a identidade do callback quando houver upload.
+      void libraryRevision;
+
       switch (kind) {
         case 'tracks':
           return client.listTracks({ limit: 50, cursor }, signal);
@@ -29,7 +32,7 @@ function useLibraryPage(kind: LibraryKind) {
           return client.listArtists({ limit: 50, cursor }, signal);
       }
     },
-    [client, kind],
+    [client, kind, libraryRevision],
   );
 
   return usePagedResource<TrackSummary | AlbumSummary | ArtistSummary>(loadPage);

@@ -28,15 +28,17 @@ function ShortcutCard({
 }
 
 export function HomeView() {
-  const { client, state: sessionState, expireSession } = useSession();
+  const { client, state: sessionState, expireSession, libraryRevision } = useSession();
   const user = sessionState.kind === 'authenticated' ? sessionState.user : null;
 
   const loadPage = useCallback(
     async (_cursor: string | undefined, signal: AbortSignal) => {
+      // Referenciado para invalidar a identidade do callback quando houver upload.
+      void libraryRevision;
       const page = await client.listTracks({ limit: 8 }, signal);
       return { items: page.items, next_cursor: null };
     },
-    [client],
+    [client, libraryRevision],
   );
 
   const recent = usePagedResource<TrackSummary>(loadPage);
