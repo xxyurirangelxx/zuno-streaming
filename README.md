@@ -4,7 +4,7 @@ Zuno é uma plataforma **self-hosted** de streaming de músicas: você mantém s
 
 A biblioteca é compartilhada entre 2–5 usuários, com playlists, favoritos e histórico segregados por pessoa. O Zuno não distribui música: os arquivos vêm do próprio usuário ou de fontes que ele tenha o direito de usar. A biblioteca usa **Opus 128 kbps VBR**: a conversão dos arquivos originais acontece no cliente que envia (Windows/Tauri, M4) e o servidor apenas armazena e transmite Opus ([ADR-0007](docs/adr/0007-opus-formato-canonico.md)). Integrações externas (metadados, IA, letras) são opcionais e nunca requisito para o funcionamento básico.
 
-O repositório está no início: o marco **M0 (fundação)** entregou o monorepo, o healthcheck, as migrations SQLite, o pipeline de qualidade e esta documentação. As funcionalidades musicais (scan, streaming, login, player) pertencem a marcos posteriores e ainda **não estão implementadas**.
+O marco **M0 (fundação)** entregou o monorepo, o healthcheck, as migrations SQLite, o pipeline de qualidade e esta documentação. O **M1a** adiciona o scanner da biblioteca (indexação de Opus, tags, capas, duplicatas e ausências). Streaming HTTP, upload, login e player continuam pendentes (M1b/M1c/M2).
 
 > **Licença Apache-2.0.** O repositório é open-source sob [Apache-2.0](LICENSE), com atribuição em [NOTICE](NOTICE) — decisão registrada em [ADR-0006](docs/adr/0006-licenca-apache-2.0.md). Contribuições são bem-vindas sob esses termos.
 
@@ -13,12 +13,12 @@ O repositório está no início: o marco **M0 (fundação)** entregou o monorepo
 | Item | Estado |
 |---|---|
 | M0 — Fundação | **Concluído** |
-| M1 — Servidor musical (scan, tags, streaming) | Não iniciado |
+| M1 — Servidor musical (scan, tags, streaming) | **Em andamento** (M1a: scanner concluído) |
 | M2 em diante | Não iniciado |
 
 O que existe hoje:
 
-- `zuno-server`: binário Rust (Axum + Tokio + SQLx/SQLite) com um único endpoint de saúde `GET /health`.
+- `zuno-server`: binário Rust (Axum + Tokio + SQLx/SQLite) com `GET /health` e o scanner de biblioteca (`zuno-server scan`).
 - `@zuno/web`: página de conectividade React que consulta `/health`, com proxy de desenvolvimento para o backend.
 - Design tokens e tipos/contrato de API compartilhados (`packages/`).
 - Scaffold Tauri 2 em `apps/desktop/src-tauri` (não compilado no M0).
@@ -103,6 +103,7 @@ Se o banco não responder, a resposta é **503** com `"status": "degraded"` e `"
 | Comando | O que faz |
 |---|---|
 | `cargo run -p zuno-server` | Sobe o backend em `127.0.0.1:8080` |
+| `cargo run -p zuno-server -- scan` | Varre `ZUNO_MUSIC_DIR` e imprime o relatório em JSON |
 | `cargo test --workspace` | Testes Rust |
 | `cargo fmt --all --check` | Verifica formatação Rust |
 | `cargo clippy --workspace --all-targets -- -D warnings` | Lint Rust (warnings são erros) |
@@ -123,7 +124,10 @@ O backend lê variáveis de ambiente (veja `.env.example`):
 |---|---|---|
 | `ZUNO_BIND_ADDR` | `127.0.0.1:8080` | Endereço de bind. O padrão é local e **não exposto publicamente** |
 | `ZUNO_DATABASE_URL` | `sqlite://data/zuno.db` | Banco SQLite (criado automaticamente) |
-| `ZUNO_MUSIC_DIR` | `./data/music` | Diretório da biblioteca — reservado ao M1, ainda não usado |
+| `ZUNO_MUSIC_DIR` | `./data/music` | Biblioteca **somente Opus**; o scan nunca move nem apaga arquivos |
+| `ZUNO_ARTWORK_DIR` | `./data/artwork` | Cache de capas extraídas (nomeadas por sha256) |
+| `ZUNO_MAX_AUDIO_FILE_BYTES` | `524288000` | Limite por arquivo no scan (500 MiB) |
+| `ZUNO_SCAN_ON_STARTUP` | `false` | Varre a biblioteca antes de servir |
 | `ZUNO_DB_MAX_CONNECTIONS` | `4` | Conexões máximas no pool (mantenha baixo no Pi 3) |
 | `RUST_LOG` | — | Filtro de logs (`tracing`) |
 | `VITE_ZUNO_API_BASE_URL` | vazio | URL base da API no frontend; vazio = mesma origem/proxy |

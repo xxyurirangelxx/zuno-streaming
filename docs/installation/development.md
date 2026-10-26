@@ -85,7 +85,10 @@ O servidor lê variáveis de ambiente do **processo**. Não há carregamento aut
 |---|---|---|
 | `ZUNO_BIND_ADDR` | `127.0.0.1:8080` | Endereço `IP:PORTA` de escuta. Valor inválido aborta a inicialização |
 | `ZUNO_DATABASE_URL` | `sqlite://data/zuno.db` | Banco SQLite; arquivo e diretório são criados se não existirem. Aceita `sqlite::memory:` em testes |
-| `ZUNO_MUSIC_DIR` | `./data/music` | Diretório da biblioteca. **Reservado ao M1**; hoje só é lido para configuração |
+| `ZUNO_MUSIC_DIR` | `./data/music` | Biblioteca **somente Opus**. O scan indexa sem mover/apagar; precisa existir |
+| `ZUNO_ARTWORK_DIR` | `./data/artwork` | Cache de capas extraídas (criado automaticamente) |
+| `ZUNO_MAX_AUDIO_FILE_BYTES` | `524288000` | Limite por arquivo no scan (1 KiB–10 GiB) |
+| `ZUNO_SCAN_ON_STARTUP` | `false` | Varre a biblioteca na inicialização do servidor |
 | `ZUNO_DB_MAX_CONNECTIONS` | `4` | Conexões máximas no pool; aceita 1–32. Mantenha baixo em hardware modesto |
 | `RUST_LOG` | `info,zuno_server=debug` | Filtro de logs do `tracing` (`trace`, `debug`, `info`, `warn`, `error`) |
 | `VITE_ZUNO_API_BASE_URL` | vazio | Base da API usada pelo frontend. Vazio = mesma origem, via proxy do Vite |
@@ -130,7 +133,20 @@ npm run dev
 
 Acesse <http://127.0.0.1:5173>. O Vite faz proxy de `/health` para `http://127.0.0.1:8080`; a página mostra o estado do servidor, a versão, o uptime e o estado do banco, com botão de nova consulta.
 
-### 4.1 Verificar a API diretamente
+### 4.1 Varrer a biblioteca
+
+Coloque arquivos **Opus** em `ZUNO_MUSIC_DIR` (outros formatos são ignorados e reportados, nunca convertidos) e rode:
+
+```bash
+cargo run -p zuno-server -- scan
+```
+
+O comando imprime um relatório JSON com `files_seen`, `files_indexed`, `files_unchanged`, `files_skipped`,
+`files_failed`, `files_missing` e a lista de `issues` (`unsupported_format`, `corrupt_file`, `too_large`,
+`symlink_skipped`, `outside_root`, `duplicate_exact`, `read_error`). O scan é idempotente: rodar de novo não
+duplica faixas e não relê arquivos inalterados. Arquivo removido vira `available = 0`; nada é apagado do banco.
+
+### 4.2 Verificar a API diretamente
 
 ```bash
 curl http://127.0.0.1:8080/health

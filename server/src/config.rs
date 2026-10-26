@@ -10,8 +10,16 @@ use anyhow::{Context, anyhow};
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 /// URL padrão do banco SQLite.
 pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/zuno.db";
-/// Diretório padrão da biblioteca musical (reservado para o M1).
+/// Diretório padrão da biblioteca musical (reservado ao M1).
 pub const DEFAULT_MUSIC_DIR: &str = "./data/music";
+/// Diretório padrão do cache de capas extraídas.
+pub const DEFAULT_ARTWORK_DIR: &str = "./data/artwork";
+/// Limite padrão de tamanho por arquivo de áudio (500 MiB).
+pub const DEFAULT_MAX_AUDIO_FILE_BYTES: u64 = 500 * 1024 * 1024;
+/// Limite inferior aceito para `ZUNO_MAX_AUDIO_FILE_BYTES`.
+pub const MIN_AUDIO_FILE_BYTES: u64 = 1024;
+/// Limite superior aceito para `ZUNO_MAX_AUDIO_FILE_BYTES` (10 GiB).
+pub const MAX_AUDIO_FILE_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 /// Número padrão de conexões no pool SQLite.
 pub const DEFAULT_DB_MAX_CONNECTIONS: u32 = 4;
 
@@ -29,6 +37,12 @@ pub struct Config {
     pub database_url: String,
     /// Diretório reservado para a biblioteca musical.
     pub music_dir: PathBuf,
+    /// Diretório do cache de capas extraídas.
+    pub artwork_dir: PathBuf,
+    /// Tamanho máximo aceito por arquivo de áudio no scan.
+    pub max_audio_file_bytes: u64,
+    /// Executa uma varredura da biblioteca na inicialização do servidor.
+    pub scan_on_startup: bool,
     /// Número máximo de conexões no pool SQLite.
     pub db_max_connections: u32,
 }
@@ -62,6 +76,20 @@ impl Config {
             non_empty(read("ZUNO_MUSIC_DIR")).unwrap_or_else(|| DEFAULT_MUSIC_DIR.to_string()),
         );
 
+        let artwork_dir = PathBuf::from(
+            non_empty(read("ZUNO_ARTWORK_DIR")).unwrap_or_else(|| DEFAULT_ARTWORK_DIR.to_string()),
+        );
+
+        let max_audio_file_bytes = match non_empty(read("ZUNO_MAX_AUDIO_FILE_BYTES")) {
+            Some(raw) => parse_max_audio_file_bytes(&raw)?,
+            None => DEFAULT_MAX_AUDIO_FILE_BYTES,
+        };
+
+        let scan_on_startup = match non_empty(read("ZUNO_SCAN_ON_STARTUP")) {
+            Some(raw) => parse_bool("ZUNO_SCAN_ON_STARTUP", &raw)?,
+            None => false,
+        };
+
         let db_max_connections = match non_empty(read("ZUNO_DB_MAX_CONNECTIONS")) {
             Some(raw) => parse_max_connections(&raw)?,
             None => DEFAULT_DB_MAX_CONNECTIONS,
@@ -71,6 +99,9 @@ impl Config {
             bind_addr,
             database_url,
             music_dir,
+            artwork_dir,
+            max_audio_file_bytes,
+            scan_on_startup,
             db_max_connections,
         })
     }
@@ -82,6 +113,9 @@ impl fmt::Debug for Config {
             .field("bind_addr", &self.bind_addr)
             .field("database_url", &"<redacted>")
             .field("music_dir", &self.music_dir)
+            .field("artwork_dir", &self.artwork_dir)
+            .field("max_audio_file_bytes", &self.max_audio_file_bytes)
+            .field("scan_on_startup", &self.scan_on_startup)
             .field("db_max_connections", &self.db_max_connections)
             .finish()
     }
@@ -106,6 +140,28 @@ fn parse_max_connections(raw: &str) -> anyhow::Result<u32> {
     }
 
     Ok(value)
+}
+
+fn parse_max_audio_file_bytes(raw: &str) -> anyhow::Result<u64> {
+    let value = raw.parse::<u64>().with_context(|| {
+        format!("ZUNO_MAX_AUDIO_FILE_BYTES inválido: '{raw}'. Informe um número de bytes.")
+    })?;
+
+    if !(MIN_AUDIO_FILE_BYTES..=MAX_AUDIO_FILE_BYTES).contains(&value) {
+        return Err(anyhow!(
+            "ZUNO_MAX_AUDIO_FILE_BYTES deve estar entre {MIN_AUDIO_FILE_BYTES} e {MAX_AUDIO_FILE_BYTES} bytes; valor recebido: {value}."
+        ));
+    }
+
+    Ok(value)
+}
+
+fn parse_bool(key: &str, raw: &str) -> anyhow::Result<bool> {
+    match raw.to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(anyhow!("{key} inválido: '{raw}'. Use true/false (ou 1/0).")),
+    }
 }
 
 #[cfg(test)]
@@ -172,6 +228,41 @@ mod tests {
                 "ZUNO_DB_MAX_CONNECTIONS={value} deveria ser rejeitado"
             );
         }
+    }
+
+    #[test]
+    fn scan_and_artwork_settings_have_defaults() {
+        let config = config_from(&[]).expect("config padrão deve ser válida");
+
+        assert_eq!(config.artwork_dir, PathBuf::from(DEFAULT_ARTWORK_DIR));
+        assert_eq!(config.max_audio_file_bytes, DEFAULT_MAX_AUDIO_FILE_BYTES);
+        assert!(!config.scan_on_startup);
+    }
+
+    #[test]
+    fn scan_and_artwork_settings_can_be_overridden() {
+        let config = config_from(&[
+            ("ZUNO_ARTWORK_DIR", "./tmp/covers"),
+            ("ZUNO_MAX_AUDIO_FILE_BYTES", "1048576"),
+            ("ZUNO_SCAN_ON_STARTUP", "true"),
+        ])
+        .expect("overrides válidos");
+
+        assert_eq!(config.artwork_dir, PathBuf::from("./tmp/covers"));
+        assert_eq!(config.max_audio_file_bytes, 1_048_576);
+        assert!(config.scan_on_startup);
+    }
+
+    #[test]
+    fn invalid_scan_settings_are_rejected() {
+        for value in ["0", "1023", "99999999999999", "abc"] {
+            assert!(
+                config_from(&[("ZUNO_MAX_AUDIO_FILE_BYTES", value)]).is_err(),
+                "ZUNO_MAX_AUDIO_FILE_BYTES={value} deveria ser rejeitado"
+            );
+        }
+
+        assert!(config_from(&[("ZUNO_SCAN_ON_STARTUP", "talvez")]).is_err());
     }
 
     #[test]
