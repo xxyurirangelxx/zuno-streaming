@@ -1,120 +1,144 @@
-import type { HealthResponse } from '@zuno/shared-types';
-import type * as ZunoApiClientModule from '@zuno/api-client';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const { healthMock } = vi.hoisted(() => ({
-  healthMock: vi.fn<() => Promise<HealthResponse>>(),
-}));
-
-vi.mock('@zuno/api-client', async (importOriginal) => {
-  const actual = await importOriginal<typeof ZunoApiClientModule>();
-  return { ...actual, createZunoClient: () => ({ health: healthMock }) };
-});
-
 import { ZunoApiError } from '@zuno/api-client';
+import type { ZunoClient } from '@zuno/api-client';
+import type { User } from '@zuno/shared-types';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
-const healthyResponse: HealthResponse = {
-  status: 'ok',
-  service: 'zuno-server',
-  version: '0.1.0',
-  uptime_seconds: 125,
-  database: { status: 'ok' },
-};
+const user: User = { id: 'u1', username: 'ana', role: 'user' };
+const admin: User = { id: 'u0', username: 'admin', role: 'admin' };
 
-const degradedResponse: HealthResponse = {
-  ...healthyResponse,
-  status: 'degraded',
-  database: { status: 'error' },
-};
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-
-  return { promise, resolve, reject };
+interface MockClient {
+  client: ZunoClient;
+  me: ReturnType<typeof vi.fn>;
+  setupStatus: ReturnType<typeof vi.fn>;
+  setupClaim: ReturnType<typeof vi.fn>;
+  login: ReturnType<typeof vi.fn>;
+  logout: ReturnType<typeof vi.fn>;
+  listTracks: ReturnType<typeof vi.fn>;
 }
 
-describe('App — conectividade M0', () => {
+function createMockClient(): MockClient {
+  const me = vi.fn();
+  const setupStatus = vi.fn();
+  const setupClaim = vi.fn();
+  const login = vi.fn();
+  const logout = vi.fn().mockResolvedValue(undefined);
+  const listTracks = vi.fn().mockResolvedValue({ items: [], next_cursor: null });
+
+  const client = {
+    health: vi.fn(),
+    me,
+    setupStatus,
+    setupClaim,
+    login,
+    logout,
+    refresh: vi.fn(),
+    redeemInvitation: vi.fn(),
+    createInvitation: vi.fn(),
+    listInvitations: vi.fn(),
+    revokeInvitation: vi.fn(),
+    listTracks,
+    listAlbums: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    listArtists: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    search: vi.fn().mockResolvedValue({ query: '', tracks: [], albums: [], artists: [] }),
+    getTrack: vi.fn(),
+    artworkUrl: (id: string, size = 'thumb') => `/api/v1/artworks/${id}?size=${size}`,
+    streamUrl: (id: string) => `/api/v1/tracks/${id}/stream`,
+  } as unknown as ZunoClient;
+
+  return { client, me, setupStatus, setupClaim, login, logout, listTracks };
+}
+
+describe('fluxo de sessão', () => {
   beforeEach(() => {
-    healthMock.mockReset();
+    window.location.hash = '';
   });
 
-  it('mostra loading e depois o estado operacional com versão e uptime', async () => {
-    const deferred = createDeferred<HealthResponse>();
-    healthMock.mockReturnValue(deferred.promise);
+  it('mostra setup quando a instância exige configuração e entra após reivindicar', async () => {
+    const mock = createMockClient();
+    mock.me.mockRejectedValue(new ZunoApiError('unauthorized', 'Sem sessão.', 401));
+    mock.setupStatus.mockResolvedValue({ required: true });
+    mock.setupClaim.mockResolvedValue({ user: admin });
 
-    render(<App />);
+    render(<App client={mock.client} />);
 
-    expect(screen.getByText('Consultando a saúde do servidor…')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Verificando…' })).toBeDisabled();
+    expect(
+      await screen.findByRole('heading', { name: 'Configurar instância' }),
+    ).toBeInTheDocument();
 
-    await act(async () => {
-      deferred.resolve(healthyResponse);
+    fireEvent.change(screen.getByLabelText('Código de setup'), {
+      target: { value: 'ABC12345' },
     });
+    fireEvent.change(screen.getByLabelText('Usuário'), { target: { value: 'admin' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'segredo123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar administrador' }));
 
-    expect(
-      await screen.findByText('Servidor operacional', undefined, { timeout: 3000 }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('zuno-server')).toBeInTheDocument();
-    expect(screen.getByText('0.1.0')).toBeInTheDocument();
-    expect(screen.getByText('2 min 5 s')).toBeInTheDocument();
-    expect(screen.getByText('Operacional')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Verificar novamente' })).toBeEnabled();
+    expect(await screen.findByText('Olá, admin')).toBeInTheDocument();
+    expect(mock.setupClaim).toHaveBeenCalledWith({
+      code: 'ABC12345',
+      username: 'admin',
+      password: 'segredo123',
+    });
   });
 
-  it('exibe estado degradado para HTTP 503', async () => {
-    healthMock.mockResolvedValue(degradedResponse);
+  it('mostra login quando o setup já foi feito e entra na biblioteca', async () => {
+    const mock = createMockClient();
+    mock.me.mockRejectedValue(new ZunoApiError('unauthorized', 'Sem sessão.', 401));
+    mock.setupStatus.mockResolvedValue({ required: false });
+    mock.login.mockResolvedValue({ user });
 
-    render(<App />);
+    render(<App client={mock.client} />);
 
-    expect(
-      await screen.findByText('Servidor degradado', undefined, { timeout: 3000 }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Banco de dados indisponível')).toBeInTheDocument();
-    expect(screen.getByText('Erro')).toBeInTheDocument();
-    expect(screen.getByText(/banco de dados não está respondendo/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Usuário'), { target: { value: 'ana' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'segredo123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    expect(await screen.findByText('Olá, ana')).toBeInTheDocument();
+    expect(mock.login).toHaveBeenCalledWith({ username: 'ana', password: 'segredo123' });
+
+    expect(screen.getAllByRole('link', { name: 'Biblioteca' }).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(mock.listTracks).toHaveBeenCalled();
+    });
   });
 
-  it('exibe mensagem acionável para falha de rede', async () => {
-    healthMock.mockRejectedValue(
-      new ZunoApiError('network_error', 'Não foi possível conectar.', null),
-    );
+  it('retorna ao login quando uma chamada autenticada recebe 401', async () => {
+    const mock = createMockClient();
+    mock.me.mockResolvedValue(user);
+    mock.listTracks.mockRejectedValue(new ZunoApiError('unauthorized', 'Sessão expirada.', 401));
 
-    render(<App />);
+    render(<App client={mock.client} />);
 
-    expect(
-      await screen.findByText('Não foi possível verificar o servidor', undefined, {
-        timeout: 3000,
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Inicie o servidor em http:\/\/127\.0\.0\.1:8080/)).toBeInTheDocument();
-    expect(screen.getByText('network_error')).toBeInTheDocument();
+    expect(await screen.findByText('Olá, ana')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
   });
 
-  it('refaz a chamada ao clicar em "Verificar novamente"', async () => {
-    healthMock.mockResolvedValue(healthyResponse);
+  it('encerra a sessão pelo menu do usuário', async () => {
+    const mock = createMockClient();
+    mock.me.mockResolvedValue(user);
 
-    render(<App />);
+    render(<App client={mock.client} />);
 
-    expect(
-      await screen.findByText('Servidor operacional', undefined, { timeout: 3000 }),
-    ).toBeInTheDocument();
-    expect(healthMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Olá, ana')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sair' })[0] as HTMLElement);
 
     await waitFor(() => {
-      expect(healthMock).toHaveBeenCalledTimes(2);
+      expect(mock.logout).toHaveBeenCalled();
     });
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
+  });
 
-    expect(
-      await screen.findByText('Servidor operacional', undefined, { timeout: 3000 }),
-    ).toBeInTheDocument();
+  it('exibe erro acionável quando o servidor não responde', async () => {
+    const mock = createMockClient();
+    mock.me.mockRejectedValue(new ZunoApiError('network_error', 'Sem conexão.', null));
+
+    render(<App client={mock.client} />);
+
+    expect(await screen.findByText('Não foi possível conectar ao Zuno')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
 });

@@ -1,37 +1,104 @@
 import { createZunoClient } from '@zuno/api-client';
+import type { ZunoClient } from '@zuno/api-client';
 import { useMemo } from 'react';
-import { HealthPanel } from './components/HealthPanel';
-import { useHealth } from './lib/health';
+import { AuthProvider, useSession } from './app/AuthProvider';
+import { AuthScreen } from './app/AuthScreen';
+import { AppShell } from './components/AppShell';
+import { HomeView } from './components/HomeView';
+import { LibraryView } from './components/LibraryView';
+import { SearchView } from './components/SearchView';
+import { ErrorState } from './components/States';
+import { describeApiError } from './lib/errors';
+import { useRoute } from './lib/router';
+import { PlayerProvider } from './player/PlayerProvider';
 
 const defaultBaseUrl = import.meta.env.VITE_ZUNO_API_BASE_URL ?? '';
 
-export default function App() {
-  const client = useMemo(() => createZunoClient({ baseUrl: defaultBaseUrl }), []);
-  const health = useHealth(client);
+function Splash() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-screen flex-col items-center justify-center gap-4 px-6"
+    >
+      <img src="/logo.png" alt="" className="h-16 w-auto max-w-44 object-contain" />
+      <p className="text-sm text-copy-muted">Verificando sessão…</p>
+      <div aria-hidden="true" className="h-1 w-40 overflow-hidden rounded-full bg-surface-muted">
+        <div className="h-full w-1/2 rounded-full bg-accent-blue motion-safe:animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+function SessionProblem() {
+  const { state, retry } = useSession();
+
+  if (state.kind !== 'error') {
+    return null;
+  }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="mx-auto flex w-full max-w-5xl items-center gap-4 px-5 pt-8 sm:px-8 sm:pt-10">
-        <img
-          src="/logo.png"
-          alt=""
-          className="h-14 w-auto max-w-40 shrink-0 object-contain sm:h-16"
+    <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center px-4 py-10">
+      <div className="w-full">
+        <ErrorState
+          title="Não foi possível conectar ao Zuno"
+          message={describeApiError(state.error)}
+          onRetry={retry}
         />
-        <div className="min-w-0">
-          <h1 className="text-3xl font-semibold tracking-tight text-copy">Zuno</h1>
-          <p className="text-sm text-copy-muted">Fundação técnica (M0)</p>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-3xl flex-1 items-start px-5 py-10 sm:px-8 sm:py-16">
-        <HealthPanel state={health.state} onRefresh={health.refresh} />
-      </main>
-
-      <footer className="mx-auto w-full max-w-5xl px-5 pb-8 sm:px-8">
-        <p className="border-t border-line/70 pt-5 text-xs leading-relaxed text-copy-muted">
-          M0 — sem autenticação, biblioteca ou streaming. Licença ainda não definida.
-        </p>
-      </footer>
+      </div>
     </div>
+  );
+}
+
+function Routes() {
+  const { route } = useRoute();
+
+  switch (route.name) {
+    case 'home':
+      return <HomeView />;
+    case 'search':
+      return <SearchView />;
+    case 'library':
+      return <LibraryView kind={route.kind} />;
+  }
+}
+
+function SessionGate() {
+  const { client, state } = useSession();
+
+  if (state.kind === 'loading') {
+    return <Splash />;
+  }
+
+  if (state.kind === 'error') {
+    return <SessionProblem />;
+  }
+
+  if (state.kind === 'setup' || state.kind === 'login') {
+    return <AuthScreen />;
+  }
+
+  return (
+    <PlayerProvider client={client}>
+      <AppShell>
+        <Routes />
+      </AppShell>
+    </PlayerProvider>
+  );
+}
+
+export interface AppProps {
+  /** Injeção usada nos testes; em produção o cliente é criado aqui. */
+  client?: ZunoClient;
+}
+
+export default function App({ client }: AppProps) {
+  const createdClient = useMemo(() => createZunoClient({ baseUrl: defaultBaseUrl }), []);
+  const activeClient = client ?? createdClient;
+
+  return (
+    <AuthProvider client={activeClient}>
+      <SessionGate />
+    </AuthProvider>
   );
 }

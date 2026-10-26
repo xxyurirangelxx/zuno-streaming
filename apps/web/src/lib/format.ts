@@ -65,3 +65,35 @@ export function describeHealthError(error: { code: string; status: number | null
         : 'Ocorreu uma falha inesperada ao consultar o servidor. Tente novamente.';
   }
 }
+
+/** Formata duração em milissegundos como `m:ss` ou `h:mm:ss`. */
+export function formatDurationMs(durationMs: number | null): string {
+  if (durationMs === null || !Number.isFinite(durationMs) || durationMs < 0) {
+    return '--:--';
+  }
+
+  return formatClock(Math.floor(durationMs / 1000));
+}
+
+/** Formata segundos como `m:ss` ou `h:mm:ss`. */
+export function formatClock(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return '0:00';
+  }
+
+  const seconds = Math.floor(totalSeconds);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remaining = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(remaining).padStart(2, '0')}`;
+}
+
+/** Rótulo PT-BR do papel do usuário. */
+export function formatRole(role: 'admin' | 'moderator' | 'user'): string {
+  return { admin: 'Administrador', moderator: 'Moderador', user: 'Ouvinte' }[role];
+}
