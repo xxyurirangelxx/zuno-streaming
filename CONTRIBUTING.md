@@ -22,6 +22,20 @@ Obrigado pelo interesse. O Zuno é um projeto pequeno e incremental: mudanças f
 5. Abra um **Pull Request** usando o template em [`.github/pull_request_template.md`](.github/pull_request_template.md).
 6. Para propor trabalho, use o template de issue em [`.github/ISSUE_TEMPLATE/issue.md`](.github/ISSUE_TEMPLATE/issue.md). Use IDs estáveis do backlog (`ZUNO-001`, `ZUNO-002`, …) quando aplicável.
 
+### Branches, PR e merge
+
+O `main` é protegido: **push direto está bloqueado** (inclusive para o mantenedor) e todo merge exige os 5 checks verdes.
+
+- **Trunk-based:** `main` é a única branch permanente. Não existe `develop` nem branch de release.
+- **Uma branch curta por entrega**, saindo de `main` atualizado, nomeada `tipo/escopo`:
+  - `feat/m1a-domain-scanner`, `feat/m1b-streaming`, `feat/m1c-upload-staging`
+  - `fix/health-degraded-status`, `docs/merge-workflow`, `ci/armv7-cross`
+- **PR obrigatório**, com o template e referência à issue (`ZUNO-005`, …).
+- **Checks obrigatórios:** `Backend (ubuntu-latest)`, `Backend (windows-latest)`, `Frontend`, `cargo audit`, `npm audit`.
+- **Merge por squash** (um commit por entrega em `main`); a branch é apagada depois do merge.
+- **Releases por tag** (`v0.1.0-m0`, `v0.1.0-m1`, …), nunca por branch de release.
+- O mantenedor pode mergear o próprio PR após o CI verde; entregas feitas por agentes seguem exatamente o mesmo fluxo.
+
 ### Regras de PR
 
 - Um PR = um milestone/issue. Evite misturar refatoração ampla com correção funcional.
