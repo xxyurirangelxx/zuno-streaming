@@ -17,6 +17,12 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: false,
       },
+      // Mesma origem no dev: o cookie de sessão `HttpOnly` do backend funciona
+      // sem configuração de CORS nem `credentials` cross-origin.
+      '/api': {
+        target: apiTarget,
+        changeOrigin: false,
+      },
     },
   },
   test: {

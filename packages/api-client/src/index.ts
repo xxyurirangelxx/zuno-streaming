@@ -1,2 +1,2 @@
-export { createZunoClient, ZunoApiError } from './client';
+export { createZunoClient, isUnauthorizedError, ZunoApiError } from './client';
 export type { ZunoClient, ZunoClientOptions } from './client';
