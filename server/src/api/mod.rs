@@ -2,10 +2,12 @@
 
 pub mod artwork;
 pub mod auth;
+pub mod favorites;
 pub mod health;
 pub mod invitations;
 pub mod library;
 pub mod pagination;
+pub mod playlists;
 pub mod setup;
 pub mod stream;
 pub mod uploads;
@@ -18,7 +20,7 @@ use axum::Router;
 use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use sqlx::SqlitePool;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
@@ -92,6 +94,30 @@ pub fn build_router(state: AppState) -> Router {
             get(invitations::list).post(invitations::create),
         )
         .route("/api/v1/invitations/{id}", delete(invitations::revoke))
+        .route(
+            "/api/v1/playlists",
+            get(playlists::list).post(playlists::create),
+        )
+        .route(
+            "/api/v1/playlists/{id}",
+            get(playlists::get)
+                .patch(playlists::update)
+                .delete(playlists::delete),
+        )
+        .route("/api/v1/playlists/{id}/items", post(playlists::add_item))
+        .route(
+            "/api/v1/playlists/{id}/items/{track_id}",
+            delete(playlists::remove_item),
+        )
+        .route(
+            "/api/v1/playlists/{id}/items/{track_id}/position",
+            put(playlists::reorder_item),
+        )
+        .route("/api/v1/favorites", get(favorites::list))
+        .route(
+            "/api/v1/favorites/{kind}/{id}",
+            put(favorites::add).delete(favorites::remove),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             crate::auth::middleware::require_auth,

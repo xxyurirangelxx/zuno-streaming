@@ -1,5 +1,6 @@
 import type { AlbumSummary, ArtistSummary } from '@zuno/shared-types';
 import { Artwork } from './Artwork';
+import { FavoriteButton } from './FavoriteButton';
 
 export function AlbumGrid({ albums }: { albums: AlbumSummary[] }) {
   if (albums.length === 0) {
@@ -21,7 +22,12 @@ export function AlbumGrid({ albums }: { albums: AlbumSummary[] }) {
               className="aspect-square w-full"
               rounded="rounded-xl"
             />
-            <p className="mt-3 truncate text-sm font-semibold text-copy">{album.title}</p>
+            <div className="mt-2 flex items-start justify-between gap-2">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-copy">
+                {album.title}
+              </p>
+              <FavoriteButton kind="album" entity={album} label={album.title} />
+            </div>
             <p className="truncate text-xs text-copy-muted">
               {album.artist?.name ?? 'Artista desconhecido'}
               {album.release_year !== null ? ` · ${album.release_year}` : ''}
@@ -54,13 +60,14 @@ export function ArtistList({ artists }: { artists: ArtistSummary[] }) {
           >
             {artist.name.slice(0, 1).toUpperCase()}
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-copy">{artist.name}</p>
             <p className="text-xs text-copy-muted">
               {artist.track_count} {artist.track_count === 1 ? 'faixa' : 'faixas'} ·{' '}
               {artist.album_count} {artist.album_count === 1 ? 'álbum' : 'álbuns'}
             </p>
           </div>
+          <FavoriteButton kind="artist" entity={artist} label={artist.name} />
         </li>
       ))}
     </ul>

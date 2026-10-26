@@ -146,7 +146,7 @@ zuno/
 
 ### M2 — Web funcional, auth e biblioteca
 
-> **Status (26/10/2026): M2a e M2b concluídos** (auth/RBAC/convites + shell web, biblioteca, busca e player) — evidências em [`docs/milestones/M2a.md`](docs/milestones/M2a.md) e [`M2b`](docs/milestones/M2b.md). Playlists/favoritos, upload UI e preferências (M2c–M2e) pendentes.
+> **Status (26/10/2026): M2a, M2b e M2c concluídos** — evidências em [`M2a`](docs/milestones/M2a.md), [`M2b`](docs/milestones/M2b.md) e [`M2c`](docs/milestones/M2c.md). Upload UI (M2d) e preferências/privacidade/histórico + E2E (M2e) pendentes.
 
 - [x] Instalação de primeiro admin local com código único e expiração. *(M2a)*
 - [x] Login senha/Argon2id, sessão refresh revogável e convite com validade. *(M2a)*
@@ -154,7 +154,7 @@ zuno/
 - [x] Web shell, temas claro/escuro/sistema e navegação responsiva. *(M2b: tokens de tema; seletor explícito no M2e)*
 - [x] Música, álbum, artista, capa, search instantânea e filtros. *(M2b: listas + busca com debounce; filtros avançados no M2e)*
 - [x] Player com fila, shuffle, repeat, seek e teclas básicas. *(M2b)*
-- [ ] Playlists por usuário e favoritos separados; compartilhamento somente autorizado. *(M2c)*
+- [x] Playlists por usuário e favoritos separados; compartilhamento somente autorizado. *(M2c: ownership 404, favoritos idempotentes; link público no M2e)*
 - [ ] Web upload progressivo com revisão de duplicatas. *(M2d)*
 - [ ] Preferências, privacidade, histórico individual. *(M2e)*
 

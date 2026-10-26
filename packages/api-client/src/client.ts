@@ -1,15 +1,23 @@
 import type {
+  AddPlaylistItemRequest,
   AlbumListResponse,
   ApiErrorBody,
   ArtworkSize,
   ArtistListResponse,
   CreatedInvitation,
   CreateInvitationRequest,
+  CreatePlaylistRequest,
+  FavoriteKind,
+  FavoritesResponse,
   HealthResponse,
   InvitationItem,
   ListPageParams,
   ListTracksParams,
   LoginRequest,
+  MovePlaylistItemRequest,
+  PlaylistDetail,
+  PlaylistItemPosition,
+  PlaylistSummary,
   RedeemInvitationRequest,
   SearchResponse,
   SessionResponse,
@@ -17,6 +25,7 @@ import type {
   SetupStatusResponse,
   TrackDetail,
   TrackListResponse,
+  UpdatePlaylistRequest,
   User,
 } from '@zuno/shared-types';
 
@@ -62,6 +71,40 @@ export interface ZunoClient {
   listArtists(params?: ListPageParams, signal?: AbortSignal): Promise<ArtistListResponse>;
   search(q: string, signal?: AbortSignal): Promise<SearchResponse>;
   getTrack(id: string, signal?: AbortSignal): Promise<TrackDetail>;
+
+  // Playlists
+  listPlaylists(signal?: AbortSignal): Promise<PlaylistSummary[]>;
+  createPlaylist(payload: CreatePlaylistRequest, signal?: AbortSignal): Promise<PlaylistSummary>;
+  getPlaylist(id: string, signal?: AbortSignal): Promise<PlaylistDetail>;
+  updatePlaylist(
+    id: string,
+    payload: UpdatePlaylistRequest,
+    signal?: AbortSignal,
+  ): Promise<PlaylistSummary>;
+  deletePlaylist(id: string, signal?: AbortSignal): Promise<void>;
+  addPlaylistItem(
+    id: string,
+    payload: AddPlaylistItemRequest,
+    signal?: AbortSignal,
+  ): Promise<PlaylistItemPosition>;
+  removePlaylistItem(id: string, trackId: string, signal?: AbortSignal): Promise<void>;
+  movePlaylistItem(
+    id: string,
+    trackId: string,
+    payload: MovePlaylistItemRequest,
+    signal?: AbortSignal,
+  ): Promise<void>;
+
+  // Favoritos
+  listFavorites(signal?: AbortSignal): Promise<FavoritesResponse>;
+  setFavorite(
+    kind: FavoriteKind,
+    id: string,
+    favorite: boolean,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  addFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void>;
+  removeFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void>;
 
   // Mídia
   artworkUrl(id: string, size?: ArtworkSize): string;
@@ -513,6 +556,163 @@ export function createZunoClient(options: ZunoClientOptions = {}): ZunoClient {
           return body as unknown as TrackDetail;
         },
         { signal },
+      );
+    },
+
+    async listPlaylists(signal?: AbortSignal): Promise<PlaylistSummary[]> {
+      return request(
+        `${API_PREFIX}/playlists`,
+        (body, response) => {
+          requireOk(body, response);
+          if (!Array.isArray(body)) {
+            throw invalidResponse(response.status);
+          }
+          return body as PlaylistSummary[];
+        },
+        { signal },
+      );
+    },
+
+    async createPlaylist(
+      payload: CreatePlaylistRequest,
+      signal?: AbortSignal,
+    ): Promise<PlaylistSummary> {
+      return request(
+        `${API_PREFIX}/playlists`,
+        (body, response) => {
+          requireOk(body, response);
+          if (!isRecord(body) || typeof body.id !== 'string') {
+            throw invalidResponse(response.status);
+          }
+          return body as unknown as PlaylistSummary;
+        },
+        { method: 'POST', body: payload, signal },
+      );
+    },
+
+    async getPlaylist(id: string, signal?: AbortSignal): Promise<PlaylistDetail> {
+      return request(
+        `${API_PREFIX}/playlists/${encodeURIComponent(id)}`,
+        (body, response) => {
+          requireOk(body, response);
+          if (!isRecord(body) || typeof body.id !== 'string' || !Array.isArray(body.items)) {
+            throw invalidResponse(response.status);
+          }
+          return body as unknown as PlaylistDetail;
+        },
+        { signal },
+      );
+    },
+
+    async updatePlaylist(
+      id: string,
+      payload: UpdatePlaylistRequest,
+      signal?: AbortSignal,
+    ): Promise<PlaylistSummary> {
+      return request(
+        `${API_PREFIX}/playlists/${encodeURIComponent(id)}`,
+        (body, response) => {
+          requireOk(body, response);
+          if (!isRecord(body) || typeof body.id !== 'string') {
+            throw invalidResponse(response.status);
+          }
+          return body as unknown as PlaylistSummary;
+        },
+        { method: 'PATCH', body: payload, signal },
+      );
+    },
+
+    async deletePlaylist(id: string, signal?: AbortSignal): Promise<void> {
+      return request<void>(`${API_PREFIX}/playlists/${encodeURIComponent(id)}`, () => undefined, {
+        method: 'DELETE',
+        signal,
+      });
+    },
+
+    async addPlaylistItem(
+      id: string,
+      payload: AddPlaylistItemRequest,
+      signal?: AbortSignal,
+    ): Promise<PlaylistItemPosition> {
+      return request(
+        `${API_PREFIX}/playlists/${encodeURIComponent(id)}/items`,
+        (body, response) => {
+          requireOk(body, response);
+          if (!isRecord(body) || typeof body.position !== 'number') {
+            throw invalidResponse(response.status);
+          }
+          return { position: body.position };
+        },
+        { method: 'POST', body: payload, signal },
+      );
+    },
+
+    async removePlaylistItem(id: string, trackId: string, signal?: AbortSignal): Promise<void> {
+      return request<void>(
+        `${API_PREFIX}/playlists/${encodeURIComponent(id)}/items/${encodeURIComponent(trackId)}`,
+        () => undefined,
+        { method: 'DELETE', signal },
+      );
+    },
+
+    async movePlaylistItem(
+      id: string,
+      trackId: string,
+      payload: MovePlaylistItemRequest,
+      signal?: AbortSignal,
+    ): Promise<void> {
+      return request<void>(
+        `${API_PREFIX}/playlists/${encodeURIComponent(id)}/items/${encodeURIComponent(trackId)}/position`,
+        () => undefined,
+        { method: 'PUT', body: payload, signal },
+      );
+    },
+
+    async listFavorites(signal?: AbortSignal): Promise<FavoritesResponse> {
+      return request(
+        `${API_PREFIX}/favorites`,
+        (body, response) => {
+          requireOk(body, response);
+          if (
+            !isRecord(body) ||
+            !Array.isArray(body.tracks) ||
+            !Array.isArray(body.albums) ||
+            !Array.isArray(body.artists)
+          ) {
+            throw invalidResponse(response.status);
+          }
+          return body as unknown as FavoritesResponse;
+        },
+        { signal },
+      );
+    },
+
+    async setFavorite(
+      kind: FavoriteKind,
+      id: string,
+      favorite: boolean,
+      signal?: AbortSignal,
+    ): Promise<void> {
+      return request<void>(
+        `${API_PREFIX}/favorites/${kind}/${encodeURIComponent(id)}`,
+        () => undefined,
+        { method: favorite ? 'PUT' : 'DELETE', signal },
+      );
+    },
+
+    async addFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void> {
+      return request<void>(
+        `${API_PREFIX}/favorites/${kind}/${encodeURIComponent(id)}`,
+        () => undefined,
+        { method: 'PUT', signal },
+      );
+    },
+
+    async removeFavorite(kind: FavoriteKind, id: string, signal?: AbortSignal): Promise<void> {
+      return request<void>(
+        `${API_PREFIX}/favorites/${kind}/${encodeURIComponent(id)}`,
+        () => undefined,
+        { method: 'DELETE', signal },
       );
     },
 

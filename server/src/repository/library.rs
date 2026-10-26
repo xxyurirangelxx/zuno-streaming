@@ -42,6 +42,36 @@ const TRACK_COLUMNS: &str = "t.id,
 /// `FROM` comum das consultas de faixa (o álbum é opcional).
 const TRACK_FROM: &str = " FROM tracks t LEFT JOIN albums al ON al.id = t.album_id";
 
+/// Colunas comuns de álbum (artista principal e contagem de faixas).
+const ALBUM_SELECT: &str = "SELECT al.id,
+        al.normalized_title,
+        al.title,
+        al.album_artist_id,
+        al.release_year,
+        al.artwork_id,
+        ar.name AS artist_name,
+        (SELECT COUNT(*) FROM tracks t WHERE t.album_id = al.id) AS track_count
+     FROM albums al
+     LEFT JOIN artists ar ON ar.id = al.album_artist_id";
+
+/// Colunas comuns de artista (contagens de faixas e álbuns).
+const ARTIST_SELECT: &str = "SELECT ar.id,
+        ar.normalized_name,
+        ar.name,
+        (SELECT COUNT(DISTINCT ta.track_id)
+         FROM track_artists ta
+         WHERE ta.artist_id = ar.id) AS track_count,
+        (SELECT COUNT(*)
+         FROM (
+             SELECT al.id FROM albums al WHERE al.album_artist_id = ar.id
+             UNION
+             SELECT t.album_id
+             FROM track_artists ta
+             JOIN tracks t ON t.id = ta.track_id
+             WHERE ta.artist_id = ar.id AND t.album_id IS NOT NULL
+         )) AS album_count
+     FROM artists ar";
+
 /// Papel usado ao expor artistas em `TrackSummary`.
 ///
 /// A listagem mostra créditos de performance, na ordem definida pelo scanner.
@@ -140,19 +170,8 @@ pub async fn list_albums(
     let page_size = usize::try_from(limit).context("limite de página inválido")?;
     let fetch = limit.saturating_add(1);
 
-    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
-        "SELECT al.id,
-                al.normalized_title,
-                al.title,
-                al.album_artist_id,
-                al.release_year,
-                al.artwork_id,
-                ar.name AS artist_name,
-                (SELECT COUNT(*) FROM tracks t WHERE t.album_id = al.id) AS track_count
-         FROM albums al
-         LEFT JOIN artists ar ON ar.id = al.album_artist_id
-         WHERE 1 = 1",
-    );
+    let mut builder: QueryBuilder<'_, Sqlite> =
+        QueryBuilder::new(format!("{ALBUM_SELECT} WHERE 1 = 1"));
 
     if let Some(cursor) = cursor {
         builder
@@ -183,29 +202,10 @@ pub async fn list_albums(
     let mut last_key: Option<(String, String)> = None;
 
     for row in &rows {
-        let artist_id: Option<String> = row.try_get("album_artist_id")?;
-        let artist_name: Option<String> = row.try_get("artist_name")?;
-        let artist = match (artist_id, artist_name) {
-            (Some(id), Some(name)) => Some(ArtistRef { id, name }),
-            _ => None,
-        };
-
-        let release_year: Option<i64> = row.try_get("release_year")?;
         let id: String = row.try_get("id")?;
         let normalized_title: String = row.try_get("normalized_title")?;
 
-        items.push(AlbumSummary {
-            id: id.clone(),
-            title: row.try_get("title")?,
-            artist,
-            release_year: match release_year {
-                Some(year) => Some(i32::try_from(year).context("release_year fora do intervalo")?),
-                None => None,
-            },
-            artwork_id: row.try_get("artwork_id")?,
-            track_count: row.try_get("track_count")?,
-        });
-
+        items.push(album_summary(row)?);
         last_key = Some((normalized_title, id));
     }
 
@@ -233,25 +233,8 @@ pub async fn list_artists(
     let page_size = usize::try_from(limit).context("limite de página inválido")?;
     let fetch = limit.saturating_add(1);
 
-    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
-        "SELECT ar.id,
-                ar.normalized_name,
-                ar.name,
-                (SELECT COUNT(DISTINCT ta.track_id)
-                 FROM track_artists ta
-                 WHERE ta.artist_id = ar.id) AS track_count,
-                (SELECT COUNT(*)
-                 FROM (
-                     SELECT al.id FROM albums al WHERE al.album_artist_id = ar.id
-                     UNION
-                     SELECT t.album_id
-                     FROM track_artists ta
-                     JOIN tracks t ON t.id = ta.track_id
-                     WHERE ta.artist_id = ar.id AND t.album_id IS NOT NULL
-                 )) AS album_count
-         FROM artists ar
-         WHERE 1 = 1",
-    );
+    let mut builder: QueryBuilder<'_, Sqlite> =
+        QueryBuilder::new(format!("{ARTIST_SELECT} WHERE 1 = 1"));
 
     if let Some(cursor) = cursor {
         builder
@@ -285,13 +268,7 @@ pub async fn list_artists(
         let id: String = row.try_get("id")?;
         let normalized_name: String = row.try_get("normalized_name")?;
 
-        items.push(ArtistSummary {
-            id: id.clone(),
-            name: row.try_get("name")?,
-            track_count: row.try_get("track_count")?,
-            album_count: row.try_get("album_count")?,
-        });
-
+        items.push(artist_summary(row)?);
         last_key = Some((normalized_name, id));
     }
 
@@ -527,97 +504,158 @@ async fn summaries_by_ids(pool: &SqlitePool, ids: &[String]) -> Result<Vec<Track
     summaries_from_rows(pool, ordered).await
 }
 
+/// Carrega resumos de faixas pelos ids informados, preservando a ordem dada.
+///
+/// Usado por playlists e favoritos; a ordenação é responsabilidade do chamador.
+pub async fn track_summaries_by_ids(
+    pool: &SqlitePool,
+    ids: &[String],
+) -> Result<Vec<TrackSummary>> {
+    summaries_by_ids(pool, ids).await
+}
+
+/// Carrega resumos de álbuns pelos ids informados, preservando a ordem dada.
+pub async fn album_summaries_by_ids(
+    pool: &SqlitePool,
+    ids: &[String],
+) -> Result<Vec<AlbumSummary>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut builder: QueryBuilder<'_, Sqlite> =
+        QueryBuilder::new(format!("{ALBUM_SELECT} WHERE al.id IN ("));
+    {
+        let mut separated = builder.separated(", ");
+        for id in ids {
+            separated.push_bind(id.as_str());
+        }
+    }
+    builder.push(")");
+
+    let rows = builder
+        .build()
+        .fetch_all(pool)
+        .await
+        .context("falha ao carregar os álbuns por id")?;
+
+    let mut by_id: HashMap<String, AlbumSummary> = HashMap::with_capacity(rows.len());
+    for row in &rows {
+        let album = album_summary(row)?;
+        by_id.insert(album.id.clone(), album);
+    }
+
+    Ok(ids
+        .iter()
+        .filter_map(|id| by_id.remove(id))
+        .collect::<Vec<_>>())
+}
+
+/// Carrega resumos de artistas pelos ids informados, preservando a ordem dada.
+pub async fn artist_summaries_by_ids(
+    pool: &SqlitePool,
+    ids: &[String],
+) -> Result<Vec<ArtistSummary>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut builder: QueryBuilder<'_, Sqlite> =
+        QueryBuilder::new(format!("{ARTIST_SELECT} WHERE ar.id IN ("));
+    {
+        let mut separated = builder.separated(", ");
+        for id in ids {
+            separated.push_bind(id.as_str());
+        }
+    }
+    builder.push(")");
+
+    let rows = builder
+        .build()
+        .fetch_all(pool)
+        .await
+        .context("falha ao carregar os artistas por id")?;
+
+    let mut by_id: HashMap<String, ArtistSummary> = HashMap::with_capacity(rows.len());
+    for row in &rows {
+        let artist = artist_summary(row)?;
+        by_id.insert(artist.id.clone(), artist);
+    }
+
+    Ok(ids
+        .iter()
+        .filter_map(|id| by_id.remove(id))
+        .collect::<Vec<_>>())
+}
+
+fn album_summary(row: &SqliteRow) -> Result<AlbumSummary> {
+    let artist_id: Option<String> = row.try_get("album_artist_id")?;
+    let artist_name: Option<String> = row.try_get("artist_name")?;
+    let artist = match (artist_id, artist_name) {
+        (Some(id), Some(name)) => Some(ArtistRef { id, name }),
+        _ => None,
+    };
+
+    let release_year: Option<i64> = row.try_get("release_year")?;
+
+    Ok(AlbumSummary {
+        id: row.try_get("id")?,
+        title: row.try_get("title")?,
+        artist,
+        release_year: match release_year {
+            Some(year) => Some(i32::try_from(year).context("release_year fora do intervalo")?),
+            None => None,
+        },
+        artwork_id: row.try_get("artwork_id")?,
+        track_count: row.try_get("track_count")?,
+    })
+}
+
+fn artist_summary(row: &SqliteRow) -> Result<ArtistSummary> {
+    Ok(ArtistSummary {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        track_count: row.try_get("track_count")?,
+        album_count: row.try_get("album_count")?,
+    })
+}
+
 /// Álbuns cujo título normalizado começa pela consulta.
 async fn search_albums(pool: &SqlitePool, query: &str, limit: i64) -> Result<Vec<AlbumSummary>> {
     let pattern = like_prefix(query);
 
-    let rows = sqlx::query(
-        "SELECT al.id,
-                al.title,
-                al.album_artist_id,
-                al.release_year,
-                al.artwork_id,
-                ar.name AS artist_name,
-                (SELECT COUNT(*) FROM tracks t WHERE t.album_id = al.id) AS track_count
-         FROM albums al
-         LEFT JOIN artists ar ON ar.id = al.album_artist_id
+    let rows = sqlx::query(&format!(
+        "{ALBUM_SELECT}
          WHERE al.normalized_title LIKE ?1 ESCAPE '\\'
          ORDER BY al.normalized_title, al.id
-         LIMIT ?2",
-    )
+         LIMIT ?2"
+    ))
     .bind(pattern)
     .bind(limit)
     .fetch_all(pool)
     .await
     .context("falha ao buscar álbuns por prefixo")?;
 
-    let mut albums = Vec::with_capacity(rows.len());
-    for row in &rows {
-        let artist_id: Option<String> = row.try_get("album_artist_id")?;
-        let artist_name: Option<String> = row.try_get("artist_name")?;
-        let artist = match (artist_id, artist_name) {
-            (Some(id), Some(name)) => Some(ArtistRef { id, name }),
-            _ => None,
-        };
-        let release_year: Option<i64> = row.try_get("release_year")?;
-
-        albums.push(AlbumSummary {
-            id: row.try_get("id")?,
-            title: row.try_get("title")?,
-            artist,
-            release_year: match release_year {
-                Some(year) => Some(i32::try_from(year).context("release_year fora do intervalo")?),
-                None => None,
-            },
-            artwork_id: row.try_get("artwork_id")?,
-            track_count: row.try_get("track_count")?,
-        });
-    }
-
-    Ok(albums)
+    rows.iter().map(album_summary).collect()
 }
 
 /// Artistas cujo nome normalizado começa pela consulta.
 async fn search_artists(pool: &SqlitePool, query: &str, limit: i64) -> Result<Vec<ArtistSummary>> {
     let pattern = like_prefix(query);
 
-    let rows = sqlx::query(
-        "SELECT ar.id,
-                ar.name,
-                (SELECT COUNT(DISTINCT ta.track_id)
-                 FROM track_artists ta
-                 WHERE ta.artist_id = ar.id) AS track_count,
-                (SELECT COUNT(*)
-                 FROM (
-                     SELECT al.id FROM albums al WHERE al.album_artist_id = ar.id
-                     UNION
-                     SELECT t.album_id
-                     FROM track_artists ta
-                     JOIN tracks t ON t.id = ta.track_id
-                     WHERE ta.artist_id = ar.id AND t.album_id IS NOT NULL
-                 )) AS album_count
-         FROM artists ar
+    let rows = sqlx::query(&format!(
+        "{ARTIST_SELECT}
          WHERE ar.normalized_name LIKE ?1 ESCAPE '\\'
          ORDER BY ar.normalized_name, ar.id
-         LIMIT ?2",
-    )
+         LIMIT ?2"
+    ))
     .bind(pattern)
     .bind(limit)
     .fetch_all(pool)
     .await
     .context("falha ao buscar artistas por prefixo")?;
 
-    let mut artists = Vec::with_capacity(rows.len());
-    for row in &rows {
-        artists.push(ArtistSummary {
-            id: row.try_get("id")?,
-            name: row.try_get("name")?,
-            track_count: row.try_get("track_count")?,
-            album_count: row.try_get("album_count")?,
-        });
-    }
-
-    Ok(artists)
+    rows.iter().map(artist_summary).collect()
 }
 
 /// Arquivo que será servido: disponível primeiro, depois o último indexado.

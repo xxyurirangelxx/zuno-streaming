@@ -159,6 +159,51 @@ export interface SearchResponse {
   artists: ArtistSummary[];
 }
 
+// --- Playlists e favoritos ------------------------------------------------
+
+export type PlaylistVisibility = 'private' | 'unlisted';
+
+export interface PlaylistSummary {
+  id: string;
+  name: string;
+  visibility: PlaylistVisibility;
+  track_count: number;
+  updated_at: string;
+}
+
+export interface PlaylistDetail extends PlaylistSummary {
+  items: TrackSummary[];
+}
+
+export interface CreatePlaylistRequest {
+  name: string;
+}
+
+export interface UpdatePlaylistRequest {
+  name?: string;
+  visibility?: PlaylistVisibility;
+}
+
+export interface AddPlaylistItemRequest {
+  track_id: string;
+}
+
+export interface PlaylistItemPosition {
+  position: number;
+}
+
+export interface MovePlaylistItemRequest {
+  position: number;
+}
+
+export type FavoriteKind = 'track' | 'album' | 'artist';
+
+export interface FavoritesResponse {
+  tracks: TrackSummary[];
+  albums: AlbumSummary[];
+  artists: ArtistSummary[];
+}
+
 export interface ListTracksParams {
   limit?: number;
   cursor?: string;

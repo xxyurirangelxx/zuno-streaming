@@ -261,3 +261,206 @@ describe('createZunoClient biblioteca', () => {
     expect(client.streamUrl('id 1')).toBe('http://127.0.0.1:8080/api/v1/tracks/id%201/stream');
   });
 });
+
+const playlist = {
+  id: 'p1',
+  name: 'Favoritas',
+  visibility: 'private' as const,
+  track_count: 2,
+  updated_at: '2026-10-26T10:00:00Z',
+};
+
+const playlistTrack = {
+  id: 't1',
+  title: 'Faixa',
+  duration_ms: 1000,
+  track_no: 1,
+  disc_no: 1,
+  album: { id: 'a1', title: 'Álbum' },
+  artists: [{ id: 'ar1', name: 'Artista' }],
+  artwork_id: null,
+  available: true,
+};
+
+describe('createZunoClient playlists', () => {
+  it('lista, cria e abre playlists', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse([playlist]))
+      .mockResolvedValueOnce(jsonResponse(playlist, 201))
+      .mockResolvedValueOnce(jsonResponse({ ...playlist, items: [playlistTrack] }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.listPlaylists()).resolves.toEqual([playlist]);
+    await expect(client.createPlaylist({ name: 'Favoritas' })).resolves.toEqual(playlist);
+    await expect(client.getPlaylist('p1')).resolves.toMatchObject({
+      id: 'p1',
+      items: [playlistTrack],
+    });
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/playlists',
+      expect.objectContaining({ method: 'GET', credentials: 'include' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/playlists',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ name: 'Favoritas' }),
+      }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/playlists/p1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('propaga 409 de playlist duplicada como ZunoApiError', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ code: 'playlist_name_taken', message: 'Nome já usado.' }, 409),
+      );
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.createPlaylist({ name: 'Favoritas' })).rejects.toMatchObject({
+      name: 'ZunoApiError',
+      code: 'playlist_name_taken',
+      status: 409,
+    });
+  });
+
+  it('renomeia, exclui e manipula itens da playlist', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ ...playlist, name: 'Nova' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(jsonResponse({ position: 3 }, 201))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.updatePlaylist('p1', { name: 'Nova' })).resolves.toMatchObject({
+      name: 'Nova',
+    });
+    await expect(client.deletePlaylist('p1')).resolves.toBeUndefined();
+    await expect(client.addPlaylistItem('p1', { track_id: 't1' })).resolves.toEqual({
+      position: 3,
+    });
+    await expect(client.removePlaylistItem('p1', 't1')).resolves.toBeUndefined();
+    await expect(client.movePlaylistItem('p1', 't1', { position: 1 })).resolves.toBeUndefined();
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/playlists/p1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Nova' }),
+      }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/playlists/p1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/playlists/p1/items',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ track_id: 't1' }),
+      }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      4,
+      '/api/v1/playlists/p1/items/t1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      5,
+      '/api/v1/playlists/p1/items/t1/position',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ position: 1 }),
+      }),
+    );
+  });
+
+  it('propaga 409 de faixa duplicada na playlist', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ code: 'playlist_item_duplicate', message: 'Faixa já presente.' }, 409),
+      );
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.addPlaylistItem('p1', { track_id: 't1' })).rejects.toMatchObject({
+      code: 'playlist_item_duplicate',
+      status: 409,
+    });
+  });
+});
+
+describe('createZunoClient favoritos', () => {
+  it('lista favoritos e alterna PUT/DELETE idempotentes', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ tracks: [playlistTrack], albums: [], artists: [] }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.listFavorites()).resolves.toMatchObject({
+      tracks: [playlistTrack],
+    });
+    await expect(client.setFavorite('track', 't1', true)).resolves.toBeUndefined();
+    await expect(client.setFavorite('track', 't1', false)).resolves.toBeUndefined();
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/favorites',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/favorites/track/t1',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/favorites/track/t1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('expõe addFavorite e removeFavorite', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = createZunoClient({ fetchImpl });
+
+    await expect(client.addFavorite('album', 'a1')).resolves.toBeUndefined();
+    await expect(client.removeFavorite('artist', 'ar1')).resolves.toBeUndefined();
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/favorites/album/a1',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/favorites/artist/ar1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+});
